@@ -67,6 +67,47 @@ export function ThemeBootScript() {
         root.classList.toggle("dark", resolvedMode === "dark");
         root.style.colorScheme = resolvedMode;
 
+        // Strip extension-injected attributes (e.g. McAfee WebAdvisor's fdprocessedid)
+        // before React hydration to prevent attribute mismatch errors.
+        if (typeof MutationObserver !== "undefined") {
+          var cleanup = function(el) {
+            if (el && el.nodeType === 1) {
+              if (el.hasAttribute("fdprocessedid")) el.removeAttribute("fdprocessedid");
+              if (el.hasAttribute("bis_skin_checked")) el.removeAttribute("bis_skin_checked");
+              if (el.querySelectorAll) {
+                var nodes = el.querySelectorAll("[fdprocessedid], [bis_skin_checked]");
+                for (var k = 0; k < nodes.length; k++) {
+                  nodes[k].removeAttribute("fdprocessedid");
+                  nodes[k].removeAttribute("bis_skin_checked");
+                }
+              }
+            }
+          };
+
+          var extObserver = new MutationObserver(function(mutations) {
+            for (var i = 0; i < mutations.length; i++) {
+              var m = mutations[i];
+              if (m.type === "attributes") {
+                if (m.attributeName === "fdprocessedid" && m.target && m.target.hasAttribute("fdprocessedid")) {
+                  m.target.removeAttribute("fdprocessedid");
+                } else if (m.attributeName === "bis_skin_checked" && m.target && m.target.hasAttribute("bis_skin_checked")) {
+                  m.target.removeAttribute("bis_skin_checked");
+                }
+              } else if (m.type === "childList" && m.addedNodes) {
+                for (var j = 0; j < m.addedNodes.length; j++) {
+                  cleanup(m.addedNodes[j]);
+                }
+              }
+            }
+          });
+
+          extObserver.observe(root, {
+            attributes: true,
+            childList: true,
+            subtree: true,
+            attributeFilter: ["fdprocessedid", "bis_skin_checked"]
+          });
+        }
       } catch (e) {
         console.warn("ThemeBootScript error:", e);
       }
