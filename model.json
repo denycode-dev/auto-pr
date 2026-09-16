@@ -1,0 +1,164 @@
+{
+  "data": [
+    {
+      "created": 0,
+      "id": "opus-5",
+      "object": "model",
+      "owned_by": "Anthropic"
+    },
+    {
+      "created": 0,
+      "id": "fable-5",
+      "object": "model",
+      "owned_by": "Anthropic"
+    },
+    {
+      "created": 0,
+      "id": "fable-51",
+      "object": "model",
+      "owned_by": "Anthropic"
+    },
+    { "created": 0, "id": "astra", "object": "model", "owned_by": "OpenAI" },
+    { "created": 0, "id": "terra", "object": "model", "owned_by": "OpenAI" },
+    { "created": 0, "id": "sol", "object": "model", "owned_by": "OpenAI" },
+    {
+      "created": 0,
+      "id": "gemini-31",
+      "object": "model",
+      "owned_by": "Google"
+    },
+    {
+      "created": 0,
+      "id": "sonnet-5",
+      "object": "model",
+      "owned_by": "Anthropic"
+    },
+    { "created": 0, "id": "glm-53", "object": "model", "owned_by": "Z.ai" },
+    {
+      "created": 0,
+      "id": "sonnet-46",
+      "object": "model",
+      "owned_by": "Anthropic"
+    },
+    {
+      "created": 0,
+      "id": "sonnet-45",
+      "object": "model",
+      "owned_by": "Anthropic"
+    },
+    {
+      "created": 0,
+      "id": "haiku-45",
+      "object": "model",
+      "owned_by": "Anthropic"
+    },
+    {
+      "created": 0,
+      "id": "opus-48",
+      "object": "model",
+      "owned_by": "Anthropic"
+    },
+    {
+      "created": 0,
+      "id": "opus-47",
+      "object": "model",
+      "owned_by": "Anthropic"
+    },
+    {
+      "created": 0,
+      "id": "opus-46",
+      "object": "model",
+      "owned_by": "Anthropic"
+    },
+    {
+      "created": 0,
+      "id": "opus-45",
+      "object": "model",
+      "owned_by": "Anthropic"
+    },
+    { "created": 0, "id": "luna", "object": "model", "owned_by": "OpenAI" },
+    { "created": 0, "id": "gpt-55", "object": "model", "owned_by": "OpenAI" },
+    { "created": 0, "id": "gpt-54", "object": "model", "owned_by": "OpenAI" },
+    {
+      "created": 0,
+      "id": "gpt-54-mini",
+      "object": "model",
+      "owned_by": "OpenAI"
+    },
+    {
+      "created": 0,
+      "id": "gpt-53-codex",
+      "object": "model",
+      "owned_by": "OpenAI"
+    },
+    {
+      "created": 0,
+      "id": "gpt-5-mini",
+      "object": "model",
+      "owned_by": "OpenAI"
+    },
+    {
+      "created": 0,
+      "id": "gemini-36",
+      "object": "model",
+      "owned_by": "Google"
+    },
+    {
+      "created": 0,
+      "id": "gemini-37",
+      "object": "model",
+      "owned_by": "Google"
+    },
+    {
+      "created": 0,
+      "id": "gemini-38",
+      "object": "model",
+      "owned_by": "Google"
+    },
+    {
+      "created": 0,
+      "id": "glm-53-flash",
+      "object": "model",
+      "owned_by": "Z.ai"
+    },
+    {
+      "created": 0,
+      "id": "gemini-35",
+      "object": "model",
+      "owned_by": "Google"
+    },
+    { "created": 0, "id": "grok-45", "object": "model", "owned_by": "xAI" },
+    { "created": 0, "id": "grok-46", "object": "model", "owned_by": "xAI" },
+    {
+      "created": 0,
+      "id": "kimi-k27",
+      "object": "model",
+      "owned_by": "Moonshot"
+    },
+    {
+      "created": 0,
+      "id": "kimi-k3",
+      "object": "model",
+      "owned_by": "Moonshot"
+    },
+    {
+      "created": 0,
+      "id": "deepseek-pro",
+      "object": "model",
+      "owned_by": "DeepSeek"
+    },
+    {
+      "created": 0,
+      "id": "deepseek-flash",
+      "object": "model",
+      "owned_by": "DeepSeek"
+    },
+    {
+      "created": 0,
+      "id": "mai-code-1",
+      "object": "model",
+      "owned_by": "Microsoft"
+    }
+  ],
+  "object": "list"
+}

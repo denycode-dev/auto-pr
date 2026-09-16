@@ -1,0 +1,138 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Repository {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectKey   String        @map("project_key") @db.VarChar(64)
+  slug         String        @db.VarChar(128)
+  name         String        @db.VarChar(255)
+  isActive     Boolean       @default(true) @map("is_active")
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  pullRequests PullRequest[]
+  codingSops   CodingSop[]
+
+  @@unique([projectKey, slug])
+  @@map("repositories")
+}
+
+model PullRequest {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  repositoryId      String       @map("repository_id") @db.Uuid
+  bitbucketPrId     Int          @map("bitbucket_pr_id")
+  title             String       @db.VarChar(512)
+  authorName        String       @map("author_name") @db.VarChar(255)
+  authorSlug        String       @map("author_slug") @db.VarChar(128)
+  sourceBranch      String       @map("source_branch") @db.VarChar(255)
+  targetBranch      String       @map("target_branch") @db.VarChar(255)
+  latestCommitHash  String       @map("latest_commit_hash") @db.VarChar(64)
+  bitbucketVersion  Int          @default(0) @map("bitbucket_version")
+  prStatus          String       @default("OPEN") @map("pr_status") @db.VarChar(32)
+  aiReviewStatus    String       @default("NOT_STARTED") @map("ai_review_status") @db.VarChar(32)
+  aiRecommendation  String?      @map("ai_recommendation") @db.VarChar(32)
+  seniorDecision    String?      @map("senior_decision") @db.VarChar(32)
+  seniorNotes       String?      @map("senior_notes") @db.Text
+  decidedAt         DateTime?    @map("decided_at") @db.Timestamptz
+  cachedDiff        String?      @map("cached_diff") @db.Text
+  cachedDiffHash    String?      @map("cached_diff_hash") @db.VarChar(64)
+  filesChangedCount Int          @default(0) @map("files_changed_count")
+  additionsCount    Int          @default(0) @map("additions_count")
+  deletionsCount    Int          @default(0) @map("deletions_count")
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  repository        Repository   @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  reviewRuns        ReviewRun[]
+
+  @@unique([repositoryId, bitbucketPrId])
+  @@index([repositoryId])
+  @@map("pull_requests")
+}
+
+model ReviewRun {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pullRequestId   String        @map("pull_request_id") @db.Uuid
+  commitHash      String        @map("commit_hash") @db.VarChar(64)
+  summaryMarkdown String        @map("summary_markdown") @db.Text
+  totalIssues     Int           @default(0) @map("total_issues")
+  criticalCount   Int           @default(0) @map("critical_count")
+  highCount       Int           @default(0) @map("high_count")
+  mediumCount     Int           @default(0) @map("medium_count")
+  lowCount        Int           @default(0) @map("low_count")
+  sopScore        Int           @default(100) @map("sop_score")
+  rawLlmResponse  Json?         @map("raw_llm_response")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  pullRequest     PullRequest   @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  issues          ReviewIssue[]
+
+  @@index([pullRequestId])
+  @@map("review_runs")
+}
+
+model ReviewIssue {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reviewRunId        String    @map("review_run_id") @db.Uuid
+  filePath           String    @map("file_path") @db.VarChar(512)
+  lineNumber         Int       @map("line_number")
+  lineType           String    @default("ADDED") @map("line_type") @db.VarChar(16)
+  severity           String    @db.VarChar(16)
+  category           String    @db.VarChar(32)
+  title              String    @db.VarChar(255)
+  description        String    @db.Text
+  suggestedFix       String?   @map("suggested_fix") @db.Text
+  bitbucketCommentId BigInt?   @map("bitbucket_comment_id")
+  isPosted           Boolean   @default(false) @map("is_posted")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  reviewRun          ReviewRun @relation(fields: [reviewRunId], references: [id], onDelete: Cascade)
+
+  @@index([reviewRunId])
+  @@map("review_issues")
+}
+
+model SopCategory {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String      @db.VarChar(64)
+  slug        String      @unique @db.VarChar(64)
+  description String?     @db.VarChar(255)
+  colorBadge  String      @default("indigo") @map("color_badge") @db.VarChar(32)
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  sops        CodingSop[]
+
+  @@map("sop_categories")
+}
+
+model CodingSop {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  categoryId    String       @map("category_id") @db.Uuid
+  scope         String       @default("GLOBAL") @db.VarChar(16)
+  repositoryId  String?      @map("repository_id") @db.Uuid
+  title         String       @db.VarChar(255)
+  summary       String?      @db.VarChar(512)
+  rulesMarkdown String       @map("rules_markdown") @db.Text
+  isEnabled     Boolean      @default(true) @map("is_enabled")
+  createdBy     String       @map("created_by") @db.VarChar(128)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  category      SopCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  repository    Repository?  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId])
+  @@index([scope, repositoryId])
+  @@map("coding_sops")
+}
+
+model SystemSetting {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key       String   @unique @db.VarChar(64)
+  value     String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("system_settings")
+}
