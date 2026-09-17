@@ -1,14 +1,15 @@
-import { NextRequest } from "next/server";
-import prisma from "@/lib/prisma";
+import type { NextRequest } from "next/server";
+
 import { apiError, apiSuccess } from "@/lib/api-response";
+import prisma from "@/lib/prisma";
 import { bitbucketClient } from "@/server/bitbucket/client";
-import { calculateDiffStats } from "@/server/review/diff-filter";
+import { calculateDiffStats, deduplicateIssues } from "@/server/review/diff-filter";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-export async function GET(req: NextRequest, { params }: RouteParams) {
+export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         const fetchedDiff = await bitbucketClient.getPullRequestDiff(
           pr.repository.projectKey,
           pr.repository.slug,
-          pr.bitbucketPrId
+          pr.bitbucketPrId,
         );
 
         if (fetchedDiff && fetchedDiff.trim().length > 0) {
@@ -76,7 +77,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     const latestRun = pr.reviewRuns[0];
-    const issues = latestRun?.issues || [];
+    const allIssuesRaw = pr.reviewRuns.flatMap((r) => r.issues);
+    const uniqueIssues = deduplicateIssues(allIssuesRaw);
 
     const responseData = {
       id: pr.id,
@@ -110,7 +112,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         recommendation: pr.aiRecommendation,
         sopScore: latestRun ? latestRun.sopScore : null,
         summary: latestRun?.summaryMarkdown || null,
-        totalIssues: latestRun ? latestRun.totalIssues : 0,
+        totalIssues: uniqueIssues.length,
         scannedAt: latestRun ? latestRun.createdAt.toISOString() : null,
       },
       seniorDecision: {
@@ -126,14 +128,14 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         deletions,
       },
       hasCachedDiff: Boolean(cachedDiff && cachedDiff.trim().length > 0),
-      totalIssues: latestRun ? latestRun.totalIssues : 0,
-      criticalCount: latestRun ? latestRun.criticalCount : 0,
-      highCount: latestRun ? latestRun.highCount : 0,
-      mediumCount: latestRun ? latestRun.mediumCount : 0,
-      lowCount: latestRun ? latestRun.lowCount : 0,
+      totalIssues: uniqueIssues.length,
+      criticalCount: uniqueIssues.filter((i) => i.severity === "CRITICAL").length,
+      highCount: uniqueIssues.filter((i) => i.severity === "HIGH").length,
+      mediumCount: uniqueIssues.filter((i) => i.severity === "MEDIUM").length,
+      lowCount: uniqueIssues.filter((i) => i.severity === "LOW").length,
       sopScore: latestRun ? latestRun.sopScore : 100,
       summary: latestRun?.summaryMarkdown,
-      issues: issues.map((iss) => ({
+      issues: uniqueIssues.map((iss) => ({
         id: iss.id,
         reviewRunId: iss.reviewRunId,
         filePath: iss.filePath,

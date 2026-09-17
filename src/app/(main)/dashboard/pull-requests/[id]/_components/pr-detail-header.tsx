@@ -1,4 +1,5 @@
 import Link from "next/link";
+
 import { ArrowLeft, ExternalLink, FileCode2, GitBranch, GitCommit, GitPullRequest } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +19,7 @@ export function PrDetailHeader({ pr }: PrDetailHeaderProps) {
           variant="ghost"
           size="sm"
           asChild
-          className="gap-1.5 -ml-2 text-xs text-muted-foreground hover:text-foreground"
+          className="-ml-2 gap-1.5 text-muted-foreground text-xs hover:text-foreground"
         >
           <Link href="/dashboard/pull-requests">
             <ArrowLeft className="size-3.5" />
@@ -41,37 +42,35 @@ export function PrDetailHeader({ pr }: PrDetailHeaderProps) {
       {/* Main Title Row */}
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="font-mono text-xs px-2 py-0.5 bg-muted">
-            <GitPullRequest className="size-3 mr-1 text-primary" />
+          <Badge variant="outline" className="bg-muted px-2 py-0.5 font-mono text-xs">
+            <GitPullRequest className="mr-1 size-3 text-primary" />
             PR #{pr.bitbucketPrId}
           </Badge>
           <Badge variant="outline" className="font-mono text-xs">
             {pr.projectKey} / {pr.repositorySlug}
           </Badge>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-muted-foreground text-xs">
             Versi Bitbucket: <strong className="font-mono text-foreground">v{pr.bitbucketVersion}</strong>
           </span>
         </div>
 
-        <h1 className="font-semibold text-xl tracking-tight sm:text-2xl text-foreground">
-          {pr.title}
-        </h1>
+        <h1 className="font-semibold text-foreground text-xl tracking-tight sm:text-2xl">{pr.title}</h1>
 
         {/* Metadata sub-row */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-muted-foreground text-xs">
           <div className="flex items-center gap-1.5">
             <span>Dibuat oleh:</span>
-            <strong className="text-foreground font-medium">{pr.authorName}</strong>
-            <span className="text-muted-foreground/80 font-mono">({pr.authorSlug})</span>
+            <strong className="font-medium text-foreground">{pr.authorName}</strong>
+            <span className="font-mono text-muted-foreground/80">({pr.authorSlug})</span>
           </div>
 
           <span className="text-border">•</span>
 
           <div className="flex items-center gap-1 font-mono">
             <GitBranch className="size-3.5 text-primary" />
-            <span className="text-foreground font-medium">{pr.sourceBranch}</span>
+            <span className="font-medium text-foreground">{pr.sourceBranch}</span>
             <span>→</span>
-            <span className="text-foreground font-medium">{pr.targetBranch}</span>
+            <span className="font-medium text-foreground">{pr.targetBranch}</span>
           </div>
 
           <span className="text-border">•</span>
@@ -88,9 +87,9 @@ export function PrDetailHeader({ pr }: PrDetailHeaderProps) {
               <span className="text-border">•</span>
               <div className="flex items-center gap-1.5 font-mono text-[11px]">
                 <FileCode2 className="size-3.5 text-primary" />
-                <span className="text-foreground font-medium">{pr.filesChangedCount} berkas</span>
-                <span className="text-emerald-600 font-semibold">+{pr.additionsCount ?? 0}</span>
-                <span className="text-rose-600 font-semibold">-{pr.deletionsCount ?? 0}</span>
+                <span className="font-medium text-foreground">{pr.filesChangedCount} berkas</span>
+                <span className="font-semibold text-emerald-600">+{pr.additionsCount}</span>
+                <span className="font-semibold text-rose-600">-{pr.deletionsCount}</span>
               </div>
             </>
           )}

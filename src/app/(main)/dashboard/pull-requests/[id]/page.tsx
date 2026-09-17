@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
-import { AlertCircle, Code2, FileCode2, History, ListFilter, ShieldCheck } from "lucide-react";
+
+import { Code2, History, ListFilter, ShieldCheck } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import prisma from "@/lib/prisma";
 import type { PullRequest } from "@/data/code-review/types";
+import prisma from "@/lib/prisma";
+import { deduplicateIssues } from "@/server/review/diff-filter";
 
 import { AiRecommendationBanner } from "./_components/ai-recommendation-banner";
 import { CodeDiffViewer } from "./_components/code-diff-viewer";
@@ -24,15 +26,11 @@ export default async function PullRequestDetailPage({ params }: PageProps) {
 
   try {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    const numId = Number(id);
+    const isNumeric = !Number.isNaN(numId);
+
     const dbPr = await prisma.pullRequest.findFirst({
-      where: isUuid
-        ? { id }
-        : {
-            OR: [
-              { id },
-              { bitbucketPrId: isNaN(Number(id)) ? -1 : Number(id) },
-            ],
-          },
+      where: isUuid ? { id } : isNumeric ? { bitbucketPrId: numId } : { id: "00000000-0000-0000-0000-000000000000" },
       include: {
         repository: true,
         reviewRuns: {
@@ -48,7 +46,10 @@ export default async function PullRequestDetailPage({ params }: PageProps) {
 
     if (dbPr) {
       const latestRun = dbPr.reviewRuns[0];
-      const issues = latestRun?.issues || [];
+      // Aggregate issues across runs and deduplicate so no duplicate issues appear in reports
+      const allIssuesRaw = dbPr.reviewRuns.flatMap((r) => r.issues);
+      const uniqueIssues = deduplicateIssues(allIssuesRaw);
+
       pr = {
         id: dbPr.id,
         repositoryId: dbPr.repositoryId,
@@ -73,14 +74,14 @@ export default async function PullRequestDetailPage({ params }: PageProps) {
         deletionsCount: dbPr.deletionsCount ?? 0,
         cachedDiff: dbPr.cachedDiff,
         cachedDiffHash: dbPr.cachedDiffHash,
-        totalIssues: latestRun ? latestRun.totalIssues : 0,
-        criticalCount: latestRun ? latestRun.criticalCount : 0,
-        highCount: latestRun ? latestRun.highCount : 0,
-        mediumCount: latestRun ? latestRun.mediumCount : 0,
-        lowCount: latestRun ? latestRun.lowCount : 0,
+        totalIssues: uniqueIssues.length,
+        criticalCount: uniqueIssues.filter((i) => i.severity === "CRITICAL").length,
+        highCount: uniqueIssues.filter((i) => i.severity === "HIGH").length,
+        mediumCount: uniqueIssues.filter((i) => i.severity === "MEDIUM").length,
+        lowCount: uniqueIssues.filter((i) => i.severity === "LOW").length,
         sopScore: latestRun ? latestRun.sopScore : 100,
         summary: latestRun?.summaryMarkdown,
-        issues: issues.map((iss) => ({
+        issues: uniqueIssues.map((iss) => ({
           id: iss.id,
           reviewRunId: iss.reviewRunId,
           filePath: iss.filePath,
@@ -93,6 +94,7 @@ export default async function PullRequestDetailPage({ params }: PageProps) {
           suggestedFix: iss.suggestedFix || undefined,
           bitbucketCommentId: iss.bitbucketCommentId ? iss.bitbucketCommentId.toString() : undefined,
           isPosted: iss.isPosted,
+          isFalsePositive: (iss as any).isFalsePositive ?? false,
           createdAt: iss.createdAt.toISOString(),
         })),
         reviewRuns: dbPr.reviewRuns.map((r) => ({
@@ -121,7 +123,7 @@ export default async function PullRequestDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const issues = pr.issues || [];
+  const issues = pr.issues ?? [];
 
   return (
     <div className="flex flex-col gap-6 pb-12">
@@ -136,31 +138,31 @@ export default async function PullRequestDetailPage({ params }: PageProps) {
 
       {/* Interactive Tabs Workspace */}
       <Tabs defaultValue="diff" className="w-full space-y-4">
-        <TabsList className="w-full justify-start h-10 p-1 bg-muted/60 border">
-          <TabsTrigger value="diff" className="text-xs gap-1.5 px-3">
+        <TabsList className="h-10 w-full justify-start border bg-muted/60 p-1">
+          <TabsTrigger value="diff" className="gap-1.5 px-3 text-xs">
             <Code2 className="size-3.5" />
             Workspace Diff &amp; Review
             {typeof pr.filesChangedCount === "number" && pr.filesChangedCount > 0 && (
-              <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-mono">
+              <Badge variant="secondary" className="px-1.5 py-0 font-mono text-[10px]">
                 {pr.filesChangedCount} berkas
               </Badge>
             )}
           </TabsTrigger>
 
-          <TabsTrigger value="issues" className="text-xs gap-1.5 px-3">
+          <TabsTrigger value="issues" className="gap-1.5 px-3 text-xs">
             <ListFilter className="size-3.5" />
             Daftar Temuan Isu
-            <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-mono">
+            <Badge variant="secondary" className="px-1.5 py-0 font-mono text-[10px]">
               {issues.length}
             </Badge>
           </TabsTrigger>
 
-          <TabsTrigger value="sop" className="text-xs gap-1.5 px-3">
+          <TabsTrigger value="sop" className="gap-1.5 px-3 text-xs">
             <ShieldCheck className="size-3.5" />
             Kepatuhan SOP
             <Badge
               variant="outline"
-              className={`px-1.5 py-0 text-[10px] font-mono ${
+              className={`px-1.5 py-0 font-mono text-[10px] ${
                 pr.sopScore >= 80 ? "text-emerald-600" : "text-amber-600"
               }`}
             >
@@ -168,7 +170,7 @@ export default async function PullRequestDetailPage({ params }: PageProps) {
             </Badge>
           </TabsTrigger>
 
-          <TabsTrigger value="runs" className="text-xs gap-1.5 px-3">
+          <TabsTrigger value="runs" className="gap-1.5 px-3 text-xs">
             <History className="size-3.5" />
             Riwayat Analisis
           </TabsTrigger>
@@ -179,7 +181,7 @@ export default async function PullRequestDetailPage({ params }: PageProps) {
         </TabsContent>
 
         <TabsContent value="issues" className="mt-0 focus-visible:outline-none">
-          <IssuesTab issues={issues} bitbucketPrId={pr.bitbucketPrId} />
+          <IssuesTab issues={issues} bitbucketPrId={pr.bitbucketPrId} prId={pr.id} />
         </TabsContent>
 
         <TabsContent value="sop" className="mt-0 focus-visible:outline-none">

@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
+
 import { useRouter } from "next/navigation";
+
 import {
   AlertCircle,
   AlertTriangle,
   Check,
   CheckCircle2,
-  Play,
   RotateCcw,
   ShieldCheck,
   Sparkles,
@@ -17,6 +18,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import type { PullRequest, SeniorDecision } from "@/data/code-review/types";
+
 import { ReviewProgressModal } from "./review-progress-modal";
 
 interface SeniorActionBarProps {
@@ -36,7 +39,7 @@ interface SeniorActionBarProps {
 export function SeniorActionBar({ pr }: SeniorActionBarProps) {
   const router = useRouter();
   const [currentDecision, setCurrentDecision] = React.useState<SeniorDecision>(pr.seniorDecision);
-  const [decisionNotes, setDecisionNotes] = React.useState<string>(pr.seniorNotes || "");
+  const [decisionNotes, setDecisionNotes] = React.useState<string>(pr.seniorNotes ?? "");
   const [decidedAt, setDecidedAt] = React.useState<string | undefined>(pr.decidedAt);
 
   // Modal states
@@ -46,12 +49,14 @@ export function SeniorActionBar({ pr }: SeniorActionBarProps) {
   const [isDeclineOpen, setIsDeclineOpen] = React.useState(false);
 
   // Form inputs
+  const [publishAiCommentsOnApprove, setPublishAiCommentsOnApprove] = React.useState(true);
   const [notesInput, setNotesInput] = React.useState("");
   const [declineReasonInput, setDeclineReasonInput] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const isNotStarted = pr.aiReviewStatus === "NOT_STARTED";
   const isInProgress = pr.aiReviewStatus === "IN_PROGRESS";
+  const isAiReviewCompleted = pr.aiReviewStatus === "COMPLETED";
 
   const handleApprove = async () => {
     setIsSubmitting(true);
@@ -59,7 +64,10 @@ export function SeniorActionBar({ pr }: SeniorActionBarProps) {
       const res = await fetch(`/api/pull-requests/${pr.id}/action`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "APPROVE" }),
+        body: JSON.stringify({
+          action: "APPROVE",
+          publishAiComments: publishAiCommentsOnApprove,
+        }),
       });
       const data = await res.json();
 
@@ -68,7 +76,9 @@ export function SeniorActionBar({ pr }: SeniorActionBarProps) {
         setDecidedAt(new Date().toISOString());
         setIsApproveOpen(false);
         toast.success("Pull Request Berhasil Disetujui!", {
-          description: `Status persetujuan telah dikirim ke Bitbucket Server untuk PR #${pr.bitbucketPrId}.`,
+          description: publishAiCommentsOnApprove
+            ? `Status persetujuan & temuan AI telah dikirim ke Bitbucket Server untuk PR #${pr.bitbucketPrId}.`
+            : `Status persetujuan telah dikirim ke Bitbucket Server untuk PR #${pr.bitbucketPrId}.`,
         });
         router.refresh();
       } else {
@@ -150,6 +160,94 @@ export function SeniorActionBar({ pr }: SeniorActionBarProps) {
     }
   };
 
+  let subtitleContent: React.ReactNode;
+  if (decidedAt) {
+    subtitleContent = (
+      <>
+        Tindakan dieksekusi pada{" "}
+        <span className="font-mono text-foreground">{new Date(decidedAt).toLocaleTimeString("id-ID")} WIB</span>
+      </>
+    );
+  } else if (isNotStarted) {
+    subtitleContent = "Analisis AI belum dijalankan. Tekan tombol Mulai Analisis AI untuk memindai kepatuhan SOP kode.";
+  } else {
+    subtitleContent = "Silakan periksa rekomendasi AI dan diff sebelum mengeksekusi tindakan ke Bitbucket Server.";
+  }
+
+  let actionButtons: React.ReactNode;
+  if (isNotStarted) {
+    actionButtons = (
+      <Button
+        size="sm"
+        onClick={() => setIsProgressModalOpen(true)}
+        className="shrink-0 gap-1.5 bg-primary px-4 font-semibold text-primary-foreground text-xs shadow-sm hover:bg-primary/90"
+      >
+        <Sparkles className="size-3.5" />
+        Mulai Analisis AI
+      </Button>
+    );
+  } else if (isInProgress) {
+    actionButtons = (
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => setIsProgressModalOpen(true)}
+        className="shrink-0 animate-pulse gap-1.5 border-primary/40 bg-primary/10 font-medium text-primary text-xs"
+      >
+        <Sparkles className="size-3.5 animate-spin" />
+        Sedang Menganalisis...
+      </Button>
+    );
+  } else {
+    actionButtons = (
+      <>
+        {/* Re-run AI review button */}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setIsProgressModalOpen(true)}
+          className="shrink-0 gap-1.5 whitespace-nowrap bg-muted font-medium text-foreground text-xs hover:bg-muted/80"
+          title="Jalankan ulang pemindaian AI terhadap commit terbaru"
+        >
+          <RotateCcw className="size-3.5 text-muted-foreground" />
+          Analisis Ulang AI
+        </Button>
+
+        {/* 1-Click Execution Buttons */}
+        <Button
+          size="sm"
+          onClick={() => setIsApproveOpen(true)}
+          disabled={currentDecision === "APPROVED"}
+          className="shrink-0 gap-1.5 whitespace-nowrap bg-emerald-600 font-medium text-white text-xs shadow-xs hover:bg-emerald-700"
+        >
+          <CheckCircle2 className="size-3.5" />
+          Setujui
+        </Button>
+
+        <Button
+          size="sm"
+          onClick={() => setIsNeedsWorkOpen(true)}
+          variant="outline"
+          className="shrink-0 gap-1.5 whitespace-nowrap border-amber-500/50 bg-amber-500/10 font-medium text-amber-700 text-xs hover:bg-amber-500/20 dark:text-amber-300"
+        >
+          <AlertTriangle className="size-3.5 text-amber-600 dark:text-amber-400" />
+          Minta Revisi
+        </Button>
+
+        <Button
+          size="sm"
+          onClick={() => setIsDeclineOpen(true)}
+          disabled={currentDecision === "DECLINED"}
+          variant="destructive"
+          className="shrink-0 gap-1.5 whitespace-nowrap font-medium text-xs shadow-xs"
+        >
+          <XCircle className="size-3.5" />
+          Tolak
+        </Button>
+      </>
+    );
+  }
+
   return (
     <>
       {/* 5-Stage Animated AI Progress Modal */}
@@ -165,123 +263,46 @@ export function SeniorActionBar({ pr }: SeniorActionBarProps) {
 
       {/* Sticky Action Container */}
       <div className="sticky top-12 z-30 flex flex-col gap-3 rounded-lg border border-border/80 bg-background/95 p-3.5 shadow-sm backdrop-blur-md xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="rounded-md bg-primary/10 p-2 text-primary shrink-0">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="shrink-0 rounded-md bg-primary/10 p-2 text-primary">
             <ShieldCheck className="size-5" />
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
+              <span className="whitespace-nowrap font-semibold text-muted-foreground text-xs uppercase tracking-wider">
                 Keputusan Senior Engineer:
               </span>
               {currentDecision === "PENDING" && (
                 <Badge
                   variant="outline"
-                  className="border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs shrink-0 whitespace-nowrap"
+                  className="shrink-0 whitespace-nowrap border-amber-500/40 bg-amber-500/10 text-amber-600 text-xs dark:text-amber-400"
                 >
                   Menunggu Keputusan
                 </Badge>
               )}
               {currentDecision === "APPROVED" && (
-                <Badge className="bg-emerald-600 text-white text-xs gap-1 shrink-0 whitespace-nowrap">
+                <Badge className="shrink-0 gap-1 whitespace-nowrap bg-emerald-600 text-white text-xs">
                   <Check className="size-3" /> Disetujui (Approved)
                 </Badge>
               )}
               {currentDecision === "NEEDS_WORK" && (
-                <Badge className="bg-amber-600 text-white text-xs gap-1 shrink-0 whitespace-nowrap">
+                <Badge className="shrink-0 gap-1 whitespace-nowrap bg-amber-600 text-white text-xs">
                   <AlertCircle className="size-3" /> Perlu Revisi (Needs Work)
                 </Badge>
               )}
               {currentDecision === "DECLINED" && (
-                <Badge variant="destructive" className="text-xs gap-1 shrink-0 whitespace-nowrap">
+                <Badge variant="destructive" className="shrink-0 gap-1 whitespace-nowrap text-xs">
                   <XCircle className="size-3" /> Ditolak (Declined)
                 </Badge>
               )}
             </div>
-            <p className="text-xs text-muted-foreground pt-0.5">
-              {decidedAt ? (
-                <>
-                  Tindakan dieksekusi pada{" "}
-                  <span className="font-mono text-foreground">{new Date(decidedAt).toLocaleTimeString("id-ID")} WIB</span>
-                </>
-              ) : isNotStarted ? (
-                "Analisis AI belum dijalankan. Tekan tombol Mulai Analisis AI untuk memindai kepatuhan SOP kode."
-              ) : (
-                "Silakan periksa rekomendasi AI dan diff sebelum mengeksekusi tindakan ke Bitbucket Server."
-              )}
-            </p>
+            <p className="pt-0.5 text-muted-foreground text-xs">{subtitleContent}</p>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap self-start xl:self-center">
-          {/* If NOT_STARTED, show prominent Start Review button */}
-          {isNotStarted ? (
-            <Button
-              size="sm"
-              onClick={() => setIsProgressModalOpen(true)}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shadow-sm font-semibold text-xs shrink-0 px-4"
-            >
-              <Sparkles className="size-3.5" />
-              Mulai Analisis AI
-            </Button>
-          ) : isInProgress ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setIsProgressModalOpen(true)}
-              className="border-primary/40 text-primary bg-primary/10 gap-1.5 text-xs font-medium shrink-0 animate-pulse"
-            >
-              <Sparkles className="size-3.5 animate-spin" />
-              Sedang Menganalisis...
-            </Button>
-          ) : (
-            <>
-              {/* Re-run AI review button */}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setIsProgressModalOpen(true)}
-                className="gap-1.5 text-xs font-medium shrink-0 whitespace-nowrap bg-muted hover:bg-muted/80 text-foreground"
-                title="Jalankan ulang pemindaian AI terhadap commit terbaru"
-              >
-                <RotateCcw className="size-3.5 text-muted-foreground" />
-                Analisis Ulang AI
-              </Button>
-
-              {/* 1-Click Execution Buttons */}
-              <Button
-                size="sm"
-                onClick={() => setIsApproveOpen(true)}
-                disabled={currentDecision === "APPROVED"}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-xs font-medium text-xs shrink-0 whitespace-nowrap"
-              >
-                <CheckCircle2 className="size-3.5" />
-                Setujui
-              </Button>
-
-              <Button
-                size="sm"
-                onClick={() => setIsNeedsWorkOpen(true)}
-                variant="outline"
-                className="border-amber-500/50 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300 gap-1.5 font-medium text-xs shrink-0 whitespace-nowrap"
-              >
-                <AlertTriangle className="size-3.5 text-amber-600 dark:text-amber-400" />
-                Minta Revisi
-              </Button>
-
-              <Button
-                size="sm"
-                onClick={() => setIsDeclineOpen(true)}
-                disabled={currentDecision === "DECLINED"}
-                variant="destructive"
-                className="gap-1.5 text-xs font-medium shadow-xs shrink-0 whitespace-nowrap"
-              >
-                <XCircle className="size-3.5" />
-                Tolak
-              </Button>
-            </>
-          )}
+        <div className="flex shrink-0 flex-wrap items-center gap-2 self-start sm:flex-nowrap xl:self-center">
+          {actionButtons}
         </div>
       </div>
 
@@ -289,7 +310,7 @@ export function SeniorActionBar({ pr }: SeniorActionBarProps) {
       {decisionNotes && currentDecision !== "PENDING" && (
         <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs">
           <span className="font-semibold text-amber-800 dark:text-amber-300">Catatan Peninjau untuk Developer:</span>
-          <p className="text-foreground mt-1 whitespace-pre-wrap font-sans">{decisionNotes}</p>
+          <p className="mt-1 whitespace-pre-wrap font-sans text-foreground">{decisionNotes}</p>
         </div>
       )}
 
@@ -305,11 +326,28 @@ export function SeniorActionBar({ pr }: SeniorActionBarProps) {
               Persetujuan akan dikirim dan dicatat langsung ke Bitbucket Server.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 py-2 text-xs text-muted-foreground">
+          <div className="space-y-3 py-2 text-muted-foreground text-xs">
             <p>
               Pastikan Anda telah memeriksa temuan AI dan yakin kode siap digabungkan ke branch{" "}
-              <strong className="text-foreground font-mono">{pr.targetBranch}</strong>.
+              <strong className="font-mono text-foreground">{pr.targetBranch}</strong>.
             </p>
+            {isAiReviewCompleted && (
+              <div className="flex items-start gap-2.5 rounded-md border border-border bg-muted/40 p-2.5">
+                <Checkbox
+                  id="publish-ai-comments"
+                  checked={publishAiCommentsOnApprove}
+                  onCheckedChange={(checked) => setPublishAiCommentsOnApprove(checked === true)}
+                  className="mt-0.5"
+                />
+                <label
+                  htmlFor="publish-ai-comments"
+                  className="cursor-pointer select-none text-foreground text-xs leading-relaxed"
+                >
+                  <span className="block font-semibold text-primary">Publikasikan Komentar AI</span>
+                  Kirim temuan review AI sebagai komentar review resmi pada Bitbucket Server.
+                </label>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setIsApproveOpen(false)}>
@@ -319,7 +357,7 @@ export function SeniorActionBar({ pr }: SeniorActionBarProps) {
               size="sm"
               onClick={handleApprove}
               disabled={isSubmitting}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 text-xs font-semibold"
+              className="gap-1.5 bg-emerald-600 font-semibold text-white text-xs hover:bg-emerald-700"
             >
               {isSubmitting ? "Mengirim ke Bitbucket..." : "Konfirmasi Setujui"}
             </Button>
@@ -341,7 +379,7 @@ export function SeniorActionBar({ pr }: SeniorActionBarProps) {
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
-              <label htmlFor="needs-work-notes" className="text-xs font-semibold text-foreground">
+              <label htmlFor="needs-work-notes" className="font-semibold text-foreground text-xs">
                 Catatan Revisi untuk Developer: <span className="text-destructive">*</span>
               </label>
               <Textarea
@@ -362,7 +400,7 @@ export function SeniorActionBar({ pr }: SeniorActionBarProps) {
               size="sm"
               onClick={handleNeedsWork}
               disabled={isSubmitting}
-              className="bg-amber-600 hover:bg-amber-700 text-white gap-1.5 text-xs font-semibold"
+              className="gap-1.5 bg-amber-600 font-semibold text-white text-xs hover:bg-amber-700"
             >
               {isSubmitting ? "Mengirim Catatan..." : "Kirim Revisi"}
             </Button>
@@ -384,7 +422,7 @@ export function SeniorActionBar({ pr }: SeniorActionBarProps) {
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
-              <label htmlFor="decline-reason" className="text-xs font-semibold text-foreground">
+              <label htmlFor="decline-reason" className="font-semibold text-foreground text-xs">
                 Alasan Penolakan: <span className="text-destructive">*</span>
               </label>
               <Textarea
@@ -406,7 +444,7 @@ export function SeniorActionBar({ pr }: SeniorActionBarProps) {
               variant="destructive"
               onClick={handleDecline}
               disabled={isSubmitting}
-              className="gap-1.5 text-xs font-semibold"
+              className="gap-1.5 font-semibold text-xs"
             >
               {isSubmitting ? "Menutup PR..." : "Konfirmasi Tolak PR"}
             </Button>

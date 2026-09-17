@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
+
 import { useRouter } from "next/navigation";
+
 import {
   CheckCircle2,
   Clock,
@@ -18,13 +20,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 
 interface ReviewProgressModalProps {
@@ -167,7 +163,7 @@ export function ReviewProgressModal({
             description: errorMsg,
           });
         }
-      } catch (err) {
+      } catch (_err) {
         if (!isMounted) return;
         clearInterval(stepInterval);
         setStatus("ERROR");
@@ -177,7 +173,7 @@ export function ReviewProgressModal({
       }
     };
 
-    runReview();
+    void runReview();
 
     return () => {
       isMounted = false;
@@ -186,22 +182,22 @@ export function ReviewProgressModal({
   }, [open, prId, router, onOpenChange, onCompleted]);
 
   return (
-    <Dialog open={open} onOpenChange={status === "RUNNING" ? () => {} : onOpenChange}>
-      <DialogContent className="sm:max-w-[540px] border shadow-xl">
+    <Dialog open={open} onOpenChange={status === "RUNNING" ? undefined : onOpenChange}>
+      <DialogContent className="border shadow-xl sm:max-w-[540px]">
         <DialogHeader>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="size-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+          <div className="mb-1 flex items-center gap-2">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <Sparkles className="size-4 animate-pulse" />
             </div>
             <div>
-              <DialogTitle className="text-base font-semibold">
+              <DialogTitle className="font-semibold text-base">
                 {status === "SUCCESS"
                   ? "Analisis Kode Selesai"
                   : status === "ERROR"
                     ? "Analisis Kode Terkendala"
-                    : "Memindai Pull Request #" + bitbucketPrId}
+                    : `Memindai Pull Request #${bitbucketPrId}`}
               </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground">
+              <DialogDescription className="text-muted-foreground text-xs">
                 {status === "SUCCESS"
                   ? "Hasil peninjauan dan temuan kepatuhan SOP telah siap."
                   : status === "ERROR"
@@ -217,7 +213,7 @@ export function ReviewProgressModal({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">
               <span className="font-medium text-muted-foreground">Progres Pemindaian</span>
-              <span className="font-mono font-bold text-foreground">{progress}%</span>
+              <span className="font-bold font-mono text-foreground">{progress}%</span>
             </div>
             <Progress value={progress} className="h-2 transition-all duration-500" />
           </div>
@@ -227,15 +223,15 @@ export function ReviewProgressModal({
             {STAGES.map((stage) => {
               const isDone = currentStep > stage.id || status === "SUCCESS";
               const isCurrent = currentStep === stage.id && status === "RUNNING";
-              const isPending = currentStep < stage.id && status !== "SUCCESS";
-              const Icon = stage.icon;
+              const _isPending = currentStep < stage.id && status !== "SUCCESS";
+              const _Icon = stage.icon;
 
               return (
                 <div
                   key={stage.id}
                   className={`flex items-start gap-3 rounded-md p-2 text-xs transition-all duration-200 ${
                     isCurrent
-                      ? "bg-background border border-primary/20 shadow-xs"
+                      ? "border border-primary/20 bg-background shadow-xs"
                       : isDone
                         ? "opacity-90"
                         : "opacity-40"
@@ -245,31 +241,37 @@ export function ReviewProgressModal({
                     {isDone ? (
                       <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
                     ) : isCurrent ? (
-                      <Loader2 className="size-4 text-primary animate-spin" />
+                      <Loader2 className="size-4 animate-spin text-primary" />
                     ) : (
                       <Clock className="size-4 text-muted-foreground" />
                     )}
                   </div>
 
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className={`font-medium ${isCurrent ? "text-foreground font-semibold" : "text-foreground"}`}>
+                      <span
+                        className={`font-medium ${isCurrent ? "font-semibold text-foreground" : "text-foreground"}`}
+                      >
                         {stage.title}
                       </span>
                       {isDone && (
-                        <Badge variant="outline" className="text-[10px] text-emerald-600 bg-emerald-500/10 border-emerald-500/20 px-1 py-0">
+                        <Badge
+                          variant="outline"
+                          className="border-emerald-500/20 bg-emerald-500/10 px-1 py-0 text-[10px] text-emerald-600"
+                        >
                           Selesai
                         </Badge>
                       )}
                       {isCurrent && (
-                        <Badge variant="outline" className="text-[10px] text-primary border-primary/30 px-1 py-0 animate-pulse">
+                        <Badge
+                          variant="outline"
+                          className="animate-pulse border-primary/30 px-1 py-0 text-[10px] text-primary"
+                        >
                           Memproses...
                         </Badge>
                       )}
                     </div>
-                    <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
-                      {stage.description}
-                    </p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground leading-snug">{stage.description}</p>
                   </div>
                 </div>
               );
@@ -278,8 +280,8 @@ export function ReviewProgressModal({
 
           {/* Error Banner if failed */}
           {status === "ERROR" && errorMessage && (
-            <div className="flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
-              <XCircle className="size-4 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-destructive text-xs">
+              <XCircle className="mt-0.5 size-4 shrink-0" />
               <div className="flex-1">
                 <span className="font-semibold">Kesalahan Saat Pemindaian:</span>
                 <p className="mt-0.5 text-muted-foreground">{errorMessage}</p>
@@ -291,12 +293,12 @@ export function ReviewProgressModal({
           {status === "SUCCESS" && summaryData && (
             <div className="flex items-center justify-around rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-center">
               <div>
-                <div className="text-xl font-bold font-mono text-foreground">{summaryData.totalIssues}</div>
+                <div className="font-bold font-mono text-foreground text-xl">{summaryData.totalIssues}</div>
                 <div className="text-[11px] text-muted-foreground">Isu Terdeteksi</div>
               </div>
               <div className="h-8 w-px bg-border" />
               <div>
-                <div className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                <div className="font-bold font-mono text-emerald-600 text-xl dark:text-emerald-400">
                   {summaryData.sopScore}%
                 </div>
                 <div className="text-[11px] text-muted-foreground">Kepatuhan SOP</div>
@@ -306,19 +308,14 @@ export function ReviewProgressModal({
         </div>
 
         {/* Footer actions */}
-        <div className="flex items-center justify-end gap-2 pt-2 border-t">
+        <div className="flex items-center justify-end gap-2 border-t pt-2">
           {status === "ERROR" && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              className="text-xs"
-            >
+            <Button size="sm" variant="outline" onClick={() => onOpenChange(false)} className="text-xs">
               Tutup
             </Button>
           )}
           {status === "RUNNING" && (
-            <span className="text-[11px] text-muted-foreground italic mr-auto">
+            <span className="mr-auto text-[11px] text-muted-foreground italic">
               Proses ini berjalan di server Bitbucket, mohon tidak menutup halaman...
             </span>
           )}

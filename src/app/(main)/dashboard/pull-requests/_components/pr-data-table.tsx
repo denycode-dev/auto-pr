@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
+
 import Link from "next/link";
+
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -10,7 +12,6 @@ import {
   DownloadCloud,
   Filter,
   GitBranch,
-  GitPullRequest,
   RefreshCw,
   Search,
   XCircle,
@@ -21,13 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { PullRequest, Repository } from "@/data/code-review/types";
@@ -42,17 +37,14 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
   const [repositories, setRepositories] = React.useState<Repository[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [selectedRepo, setSelectedRepo] = React.useState("ALL");
-  const [selectedRecommendation, setSelectedRecommendation] = React.useState("ALL");
-  const [activeTab, setActiveTab] = React.useState("ALL");
+  const [selectedRepo, setSelectedRepo] = React.useState("PENDING");
+  const [selectedRecommendation, setSelectedRecommendation] = React.useState("PENDING");
+  const [activeTab, setActiveTab] = React.useState("PENDING");
 
   const fetchData = React.useCallback(async () => {
     try {
       setLoading(true);
-      const [prRes, repoRes] = await Promise.all([
-        fetch("/api/pull-requests"),
-        fetch("/api/repositories"),
-      ]);
+      const [prRes, repoRes] = await Promise.all([fetch("/api/pull-requests"), fetch("/api/repositories")]);
 
       if (prRes.ok) {
         const prJson = await prRes.json();
@@ -85,8 +77,8 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
   }, []);
 
   React.useEffect(() => {
-    fetchData();
-  }, [fetchData, refreshKey]);
+    void fetchData();
+  }, [fetchData]);
 
   const filteredPrs = React.useMemo(() => {
     return prs.filter((pr) => {
@@ -102,10 +94,10 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
       if (activeTab === "DECLINED" && pr.seniorDecision !== "DECLINED") return false;
 
       // Repo filter
-      if (selectedRepo !== "ALL" && pr.repositorySlug !== selectedRepo) return false;
+      if (selectedRepo !== "PENDING" && pr.repositorySlug !== selectedRepo) return false;
 
       // Recommendation filter
-      if (selectedRecommendation !== "ALL" && pr.aiRecommendation !== selectedRecommendation) return false;
+      if (selectedRecommendation !== "PENDING" && pr.aiRecommendation !== selectedRecommendation) return false;
 
       // Search query
       if (searchQuery.trim()) {
@@ -125,9 +117,8 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
     return {
       all: prs.length,
       pending: prs.filter((p) => p.seniorDecision === "PENDING").length,
-      needsWork: prs.filter(
-        (p) => p.aiRecommendation === "RECOMMENDED_NEEDS_WORK" || p.seniorDecision === "NEEDS_WORK"
-      ).length,
+      needsWork: prs.filter((p) => p.aiRecommendation === "RECOMMENDED_NEEDS_WORK" || p.seniorDecision === "NEEDS_WORK")
+        .length,
       approved: prs.filter((p) => p.seniorDecision === "APPROVED").length,
       declined: prs.filter((p) => p.seniorDecision === "DECLINED").length,
     };
@@ -149,24 +140,18 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
         </InputGroup>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 gap-1 text-xs"
-            onClick={fetchData}
-            disabled={loading}
-          >
+          <Button variant="outline" size="sm" className="h-9 gap-1 text-xs" onClick={fetchData} disabled={loading}>
             <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
 
           <Select value={selectedRepo} onValueChange={setSelectedRepo}>
-            <SelectTrigger className="w-[180px] h-9 text-xs">
-              <Filter className="size-3.5 mr-1 text-muted-foreground" />
+            <SelectTrigger className="h-9 w-[180px] text-xs">
+              <Filter className="mr-1 size-3.5 text-muted-foreground" />
               <SelectValue placeholder="Semua Repositori" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">Semua Repositori</SelectItem>
+              <SelectItem value="PENDING">Semua Repositori</SelectItem>
               {repositories.map((repo) => (
                 <SelectItem key={repo.slug} value={repo.slug}>
                   {repo.projectKey} / {repo.slug}
@@ -176,7 +161,7 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
           </Select>
 
           <Select value={selectedRecommendation} onValueChange={setSelectedRecommendation}>
-            <SelectTrigger className="w-[190px] h-9 text-xs">
+            <SelectTrigger className="h-9 w-[190px] text-xs">
               <SelectValue placeholder="Rekomendasi AI" />
             </SelectTrigger>
             <SelectContent>
@@ -191,80 +176,84 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
 
       {/* Tabs Filter */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full overflow-hidden">
-        <TabsList className="w-full justify-start h-9 p-0.5 bg-muted/60 overflow-x-auto overflow-y-hidden">
-          <TabsTrigger value="ALL" className="text-xs gap-1.5 px-3">
-            Semua PR
-            <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-mono">
-              {counts.all}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="PENDING" className="text-xs gap-1.5 px-3">
+        <TabsList className="h-9 w-full justify-start overflow-x-auto overflow-y-hidden bg-muted/60 p-0.5">
+          <TabsTrigger value="PENDING" className="gap-1.5 px-3 text-xs">
             <Clock className="size-3 text-amber-500" />
-            Menunggu Keputusan Senior
-            <Badge variant="secondary" className="bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0 text-[10px] font-mono">
+            Menunggu Keputusan
+            <Badge
+              variant="secondary"
+              className="bg-amber-500/15 px-1.5 py-0 font-mono text-[10px] text-amber-700 dark:text-amber-300"
+            >
               {counts.pending}
             </Badge>
           </TabsTrigger>
-          <TabsTrigger value="NEEDS_WORK" className="text-xs gap-1.5 px-3">
+          <TabsTrigger value="NEEDS_WORK" className="gap-1.5 px-3 text-xs">
             <AlertTriangle className="size-3 text-amber-500" />
             Perlu Revisi
-            <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-mono">
+            <Badge variant="secondary" className="px-1.5 py-0 font-mono text-[10px]">
               {counts.needsWork}
             </Badge>
           </TabsTrigger>
-          <TabsTrigger value="APPROVED" className="text-xs gap-1.5 px-3">
+          <TabsTrigger value="APPROVED" className="gap-1.5 px-3 text-xs">
             <CheckCircle2 className="size-3 text-emerald-500" />
             Disetujui
-            <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-mono">
+            <Badge variant="secondary" className="px-1.5 py-0 font-mono text-[10px]">
               {counts.approved}
             </Badge>
           </TabsTrigger>
-          <TabsTrigger value="DECLINED" className="text-xs gap-1.5 px-3">
+          <TabsTrigger value="DECLINED" className="gap-1.5 px-3 text-xs">
             <XCircle className="size-3 text-rose-500" />
             Ditolak
-            <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-mono">
+            <Badge variant="secondary" className="px-1.5 py-0 font-mono text-[10px]">
               {counts.declined}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="ALL" className="gap-1.5 px-3 text-xs">
+            Semua PR
+            <Badge variant="secondary" className="px-1.5 py-0 font-mono text-[10px]">
+              {counts.all}
             </Badge>
           </TabsTrigger>
         </TabsList>
       </Tabs>
 
       {/* Table Card */}
-      <Card className="shadow-xs overflow-hidden">
+      <Card className="overflow-hidden shadow-xs">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader className="bg-muted/40">
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[80px] text-xs font-semibold">PR ID</TableHead>
-                  <TableHead className="text-xs font-semibold min-w-[280px]">Pull Request & Author</TableHead>
-                  <TableHead className="text-xs font-semibold min-w-[190px]">Repo & Branches</TableHead>
-                  <TableHead className="text-xs font-semibold">Rekomendasi AI</TableHead>
-                  <TableHead className="text-xs font-semibold">Status Senior</TableHead>
-                  <TableHead className="text-xs font-semibold text-center">Temuan Isu</TableHead>
-                  <TableHead className="text-xs font-semibold text-center">Skor SOP</TableHead>
-                  <TableHead className="text-right text-xs font-semibold pr-4">Aksi</TableHead>
+                  <TableHead className="w-[80px] font-semibold text-xs">PR ID</TableHead>
+                  <TableHead className="min-w-[280px] font-semibold text-xs">Pull Request & Author</TableHead>
+                  <TableHead className="min-w-[190px] font-semibold text-xs">Repo & Branches</TableHead>
+                  <TableHead className="font-semibold text-xs">Rekomendasi AI</TableHead>
+                  <TableHead className="font-semibold text-xs">Status Senior</TableHead>
+                  <TableHead className="text-center font-semibold text-xs">Temuan Isu</TableHead>
+                  <TableHead className="text-center font-semibold text-xs">Skor SOP</TableHead>
+                  <TableHead className="pr-4 text-right font-semibold text-xs">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {prs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-16">
-                      <div className="flex flex-col items-center justify-center gap-3 max-w-md mx-auto">
-                        <div className="rounded-full bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/40 p-3.5 text-indigo-600 dark:text-indigo-400 shadow-2xs">
+                    <TableCell colSpan={8} className="py-16 text-center">
+                      <div className="mx-auto flex max-w-md flex-col items-center justify-center gap-3">
+                        <div className="rounded-full border border-indigo-200 bg-indigo-50 p-3.5 text-indigo-600 shadow-2xs dark:border-indigo-800/40 dark:bg-indigo-950/50 dark:text-indigo-400">
                           <DownloadCloud className="size-6" />
                         </div>
                         <div className="space-y-1">
                           <h3 className="font-semibold text-base text-foreground">Antrean Pull Request Kosong</h3>
-                          <p className="text-xs text-muted-foreground leading-relaxed">
-                            Belum ada pull request yang terdaftar di database lokal. Tarik pull request yang sedang aktif langsung dari Bitbucket Server 8.19.
+                          <p className="text-muted-foreground text-xs leading-relaxed">
+                            Belum ada pull request yang terdaftar di database lokal. Tarik pull request yang sedang
+                            aktif langsung dari Bitbucket Server 8.19.
                           </p>
                         </div>
                         {onOpenSyncDialog && (
                           <Button
                             size="sm"
                             onClick={onOpenSyncDialog}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 text-xs font-semibold shadow-xs mt-2"
+                            className="mt-2 gap-2 bg-indigo-600 font-semibold text-white text-xs shadow-xs hover:bg-indigo-700"
                           >
                             <DownloadCloud className="size-3.5" />
                             Tarik PR dari Bitbucket
@@ -275,9 +264,9 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
                   </TableRow>
                 ) : filteredPrs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12 text-muted-foreground text-sm">
+                    <TableCell colSpan={8} className="py-12 text-center text-muted-foreground text-sm">
                       <p className="font-medium text-foreground text-xs">Tidak ada hasil yang cocok</p>
-                      <p className="text-xs text-muted-foreground pt-1">
+                      <p className="pt-1 text-muted-foreground text-xs">
                         Coba sesuaikan kata kunci pencarian atau filter status yang dipilih.
                       </p>
                     </TableCell>
@@ -290,13 +279,13 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
 
                     return (
                       <TableRow key={pr.id} className="hover:bg-muted/20">
-                        <TableCell className="font-mono text-xs font-semibold text-primary">
+                        <TableCell className="font-mono font-semibold text-primary text-xs">
                           #{pr.bitbucketPrId}
                         </TableCell>
 
                         <TableCell>
                           <div className="flex items-start gap-2.5">
-                            <Avatar className="size-6 shrink-0 mt-0.5 border border-border">
+                            <Avatar className="mt-0.5 size-6 shrink-0 border border-border">
                               {pr.authorAvatar && <AvatarImage src={pr.authorAvatar} />}
                               <AvatarFallback className="text-[10px]">
                                 {pr.authorName.slice(0, 2).toUpperCase()}
@@ -305,14 +294,16 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
                             <div className="flex flex-col gap-0.5">
                               <Link
                                 href={`/dashboard/pull-requests/${pr.id}`}
-                                className="font-medium text-xs text-foreground hover:text-primary transition-colors line-clamp-1"
+                                className="line-clamp-1 font-medium text-foreground text-xs transition-colors hover:text-primary"
                               >
                                 {pr.title}
                               </Link>
                               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                                 <span>{pr.authorName}</span>
                                 <span>•</span>
-                                <span className="font-mono text-[10px] text-muted-foreground/80">{pr.latestCommitHash.slice(0, 7)}</span>
+                                <span className="font-mono text-[10px] text-muted-foreground/80">
+                                  {pr.latestCommitHash.slice(0, 7)}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -320,12 +311,12 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
 
                         <TableCell>
                           <div className="flex flex-col text-xs">
-                            <span className="font-mono font-medium text-foreground">
+                            <span className="font-medium font-mono text-foreground">
                               {pr.projectKey} / {pr.repositorySlug}
                             </span>
-                            <div className="flex items-center gap-1 text-muted-foreground text-[10px] pt-0.5">
+                            <div className="flex items-center gap-1 pt-0.5 text-[10px] text-muted-foreground">
                               <GitBranch className="size-3" />
-                              <span className="truncate max-w-[100px] font-mono">{pr.sourceBranch}</span>
+                              <span className="max-w-[100px] truncate font-mono">{pr.sourceBranch}</span>
                               <span>→</span>
                               <span className="font-mono">{pr.targetBranch}</span>
                             </div>
@@ -334,30 +325,48 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
 
                         <TableCell>
                           {pr.aiReviewStatus === "NOT_STARTED" ? (
-                            <Badge variant="outline" className="border-muted bg-muted/40 text-muted-foreground text-[11px]">
+                            <Badge
+                              variant="outline"
+                              className="border-muted bg-muted/40 text-[11px] text-muted-foreground"
+                            >
                               Belum Dianalisis
                             </Badge>
                           ) : pr.aiReviewStatus === "IN_PROGRESS" ? (
-                            <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary text-[11px] animate-pulse">
+                            <Badge
+                              variant="outline"
+                              className="animate-pulse border-primary/40 bg-primary/10 text-[11px] text-primary"
+                            >
                               Sedang Dianalisis...
                             </Badge>
                           ) : isApprove ? (
-                            <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 gap-1 text-[11px]">
+                            <Badge
+                              variant="outline"
+                              className="gap-1 border-emerald-500/30 bg-emerald-500/10 text-[11px] text-emerald-700 dark:text-emerald-400"
+                            >
                               <CheckCircle2 className="size-3" />
                               Approve
                             </Badge>
                           ) : isNeedsWork ? (
-                            <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 gap-1 text-[11px]">
+                            <Badge
+                              variant="outline"
+                              className="gap-1 border-amber-500/30 bg-amber-500/10 text-[11px] text-amber-700 dark:text-amber-400"
+                            >
                               <AlertTriangle className="size-3" />
                               Needs Work
                             </Badge>
                           ) : isDecline ? (
-                            <Badge variant="outline" className="border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400 gap-1 text-[11px]">
+                            <Badge
+                              variant="outline"
+                              className="gap-1 border-rose-500/30 bg-rose-500/10 text-[11px] text-rose-700 dark:text-rose-400"
+                            >
                               <XCircle className="size-3" />
                               Decline
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="border-muted bg-muted/40 text-muted-foreground text-[11px]">
+                            <Badge
+                              variant="outline"
+                              className="border-muted bg-muted/40 text-[11px] text-muted-foreground"
+                            >
                               Selesai
                             </Badge>
                           )}
@@ -365,16 +374,21 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
 
                         <TableCell>
                           {pr.seniorDecision === "APPROVED" && (
-                            <Badge className="bg-emerald-600 text-white text-[11px]">Approved</Badge>
+                            <Badge className="bg-emerald-600 text-[11px] text-white">Approved</Badge>
                           )}
                           {pr.seniorDecision === "NEEDS_WORK" && (
-                            <Badge className="bg-amber-600 text-white text-[11px]">Needs Work</Badge>
+                            <Badge className="bg-amber-600 text-[11px] text-white">Needs Work</Badge>
                           )}
                           {pr.seniorDecision === "DECLINED" && (
-                            <Badge variant="destructive" className="text-[11px]">Declined</Badge>
+                            <Badge variant="destructive" className="text-[11px]">
+                              Declined
+                            </Badge>
                           )}
                           {pr.seniorDecision === "PENDING" && (
-                            <Badge variant="outline" className="border-amber-500/40 text-amber-600 dark:text-amber-400 text-[11px]">
+                            <Badge
+                              variant="outline"
+                              className="border-amber-500/40 text-[11px] text-amber-600 dark:text-amber-400"
+                            >
                               Menunggu Keputusan
                             </Badge>
                           )}
@@ -388,17 +402,17 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
                               {pr.criticalCount} Critical
                             </Badge>
                           ) : pr.highCount > 0 ? (
-                            <Badge className="h-5 bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 px-1.5 text-[10px]">
+                            <Badge className="h-5 border border-amber-500/30 bg-amber-500/15 px-1.5 text-[10px] text-amber-700 dark:text-amber-400">
                               {pr.highCount} High
                             </Badge>
                           ) : pr.totalIssues > 0 ? (
                             <span className="text-muted-foreground">{pr.totalIssues} temuan</span>
                           ) : (
-                            <span className="text-emerald-600 dark:text-emerald-400 font-medium">0 temuan</span>
+                            <span className="font-medium text-emerald-600 dark:text-emerald-400">0 temuan</span>
                           )}
                         </TableCell>
 
-                        <TableCell className="text-center font-mono text-xs font-semibold">
+                        <TableCell className="text-center font-mono font-semibold text-xs">
                           {pr.aiReviewStatus === "COMPLETED" && pr.sopScore > 0 ? (
                             <span
                               className={
@@ -416,7 +430,7 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
                           )}
                         </TableCell>
 
-                        <TableCell className="text-right pr-4">
+                        <TableCell className="pr-4 text-right">
                           <Button asChild size="sm" className="h-8 gap-1 text-xs shadow-xs">
                             <Link href={`/dashboard/pull-requests/${pr.id}`}>
                               Review

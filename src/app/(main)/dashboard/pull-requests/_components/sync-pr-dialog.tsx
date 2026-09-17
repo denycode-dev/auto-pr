@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { ArrowRight, CheckCircle2, DownloadCloud, GitBranch, RefreshCw } from "lucide-react";
+
+import { CheckCircle2, DownloadCloud, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -45,10 +45,7 @@ export function SyncPrDialog({ open, onOpenChange, onSyncSuccess }: SyncPrDialog
 
     const loadData = async () => {
       try {
-        const [repoRes, settingsRes] = await Promise.all([
-          fetch("/api/repositories"),
-          fetch("/api/settings"),
-        ]);
+        const [repoRes, settingsRes] = await Promise.all([fetch("/api/repositories"), fetch("/api/settings")]);
 
         if (repoRes.ok) {
           const rJson = await repoRes.json();
@@ -70,7 +67,7 @@ export function SyncPrDialog({ open, onOpenChange, onSyncSuccess }: SyncPrDialog
       }
     };
 
-    loadData();
+    void loadData();
   }, [open, syncProjectKey, syncRepoSlug]);
 
   const handleSelectExistingRepo = (repoId: string) => {
@@ -142,16 +139,17 @@ export function SyncPrDialog({ open, onOpenChange, onSyncSuccess }: SyncPrDialog
             Tarik Pull Request dari Bitbucket Server
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Sistem akan memanggil REST API Bitbucket Server 8.19 untuk menarik PR yang aktif dan menyimpannya ke database antrean review.
+            Sistem akan memanggil REST API Bitbucket Server 8.19 untuk menarik PR yang aktif dan menyimpannya ke
+            database antrean review.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2 text-xs">
           {/* Target Scope */}
           <div className="space-y-1.5">
-            <label className="font-semibold text-foreground">Target Penarikan PR</label>
+            <span className="font-semibold text-foreground">Target Penarikan PR</span>
             <div className="flex items-center gap-4 pt-0.5">
-              <label className="flex items-center gap-1.5 cursor-pointer">
+              <label className="flex cursor-pointer items-center gap-1.5">
                 <input
                   type="radio"
                   name="syncTargetMode"
@@ -161,7 +159,7 @@ export function SyncPrDialog({ open, onOpenChange, onSyncSuccess }: SyncPrDialog
                 />
                 <span className="font-medium">Repositori Tertentu</span>
               </label>
-              <label className="flex items-center gap-1.5 cursor-pointer">
+              <label className="flex cursor-pointer items-center gap-1.5">
                 <input
                   type="radio"
                   name="syncTargetMode"
@@ -178,15 +176,18 @@ export function SyncPrDialog({ open, onOpenChange, onSyncSuccess }: SyncPrDialog
             <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
               {repositories.length > 0 && (
                 <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-muted-foreground">
+                  <label htmlFor="select-existing-repo" className="font-medium text-[11px] text-muted-foreground">
                     Pilih dari Repositori Terdaftar (Opsional):
                   </label>
                   <select
+                    id="select-existing-repo"
                     onChange={(e) => handleSelectExistingRepo(e.target.value)}
-                    className="w-full h-8 rounded border border-input bg-background px-2.5 text-xs shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+                    className="h-8 w-full rounded border border-input bg-background px-2.5 text-xs shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
                     defaultValue=""
                   >
-                    <option value="" disabled>-- Pilih repositori untuk mengisi otomatis --</option>
+                    <option value="" disabled>
+                      -- Pilih repositori untuk mengisi otomatis --
+                    </option>
                     {repositories.map((repo) => (
                       <option key={repo.id} value={repo.id}>
                         {repo.projectKey} / {repo.slug} ({repo.name})
@@ -198,29 +199,31 @@ export function SyncPrDialog({ open, onOpenChange, onSyncSuccess }: SyncPrDialog
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="space-y-1">
-                  <label className="font-semibold text-foreground text-[11px]">
+                  <label htmlFor="sync-project-key" className="font-semibold text-[11px] text-foreground">
                     Project Key <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="sync-project-key"
                     type="text"
                     value={syncProjectKey}
                     onChange={(e) => setSyncProjectKey(e.target.value.toUpperCase())}
                     placeholder="TPE"
-                    className="w-full h-8 rounded border border-input bg-background px-2.5 font-mono text-xs shadow-xs uppercase focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+                    className="h-8 w-full rounded border border-input bg-background px-2.5 font-mono text-xs uppercase shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
                   />
                   <span className="text-[10px] text-muted-foreground">Singkatan project (mis. TPE)</span>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-semibold text-foreground text-[11px]">
+                  <label htmlFor="sync-repo-slug" className="font-semibold text-[11px] text-foreground">
                     Repository Slug <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="sync-repo-slug"
                     type="text"
                     value={syncRepoSlug}
                     onChange={(e) => setSyncRepoSlug(e.target.value.toLowerCase())}
                     placeholder="hc-app-be"
-                    className="w-full h-8 rounded border border-input bg-background px-2.5 font-mono text-xs shadow-xs lowercase focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+                    className="h-8 w-full rounded border border-input bg-background px-2.5 font-mono text-xs lowercase shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
                   />
                   <span className="text-[10px] text-muted-foreground">Slug repo (mis. hc-app-be)</span>
                 </div>
@@ -230,9 +233,9 @@ export function SyncPrDialog({ open, onOpenChange, onSyncSuccess }: SyncPrDialog
 
           {/* Filter Status PR */}
           <div className="space-y-1.5">
-            <label className="font-semibold text-foreground">Filter Status PR</label>
+            <span className="font-semibold text-foreground">Filter Status PR</span>
             <div className="flex items-center gap-4 pt-0.5">
-              <label className="flex items-center gap-1.5 cursor-pointer">
+              <label className="flex cursor-pointer items-center gap-1.5">
                 <input
                   type="radio"
                   name="prState"
@@ -242,7 +245,7 @@ export function SyncPrDialog({ open, onOpenChange, onSyncSuccess }: SyncPrDialog
                 />
                 <span>Hanya PR Terbuka (OPEN)</span>
               </label>
-              <label className="flex items-center gap-1.5 cursor-pointer">
+              <label className="flex cursor-pointer items-center gap-1.5">
                 <input
                   type="radio"
                   name="prState"
@@ -256,48 +259,51 @@ export function SyncPrDialog({ open, onOpenChange, onSyncSuccess }: SyncPrDialog
           </div>
 
           {/* Live REST API URL Preview */}
-          <div className="rounded-lg border bg-muted/60 p-3 space-y-1.5">
-            <div className="flex items-center justify-between text-[11px] font-semibold text-foreground">
+          <div className="space-y-1.5 rounded-lg border bg-muted/60 p-3">
+            <div className="flex items-center justify-between font-semibold text-[11px] text-foreground">
               <span>URL REST API Bitbucket Server yang akan dipanggil:</span>
-              <span className="rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 font-mono text-[10px] font-bold">GET</span>
+              <span className="rounded bg-indigo-500/10 px-1.5 py-0.5 font-bold font-mono text-[10px] text-indigo-600 dark:text-indigo-400">
+                GET
+              </span>
             </div>
-            <div className="font-mono text-[11px] text-indigo-700 dark:text-indigo-300 break-all bg-background p-2.5 rounded border border-indigo-200/60 dark:border-indigo-800/40 leading-relaxed shadow-2xs">
+            <div className="break-all rounded border border-indigo-200/60 bg-background p-2.5 font-mono text-[11px] text-indigo-700 leading-relaxed shadow-2xs dark:border-indigo-800/40 dark:text-indigo-300">
               {bbUrl.trim()}/rest/api/1.0/projects/
-              <strong className="text-foreground underline decoration-indigo-500 font-bold">
-                {syncTargetMode === "ALL" ? "{PROJECT_KEY}" : (syncProjectKey.trim().toUpperCase() || "PROJECT")}
+              <strong className="font-bold text-foreground underline decoration-indigo-500">
+                {syncTargetMode === "ALL" ? "{PROJECT_KEY}" : syncProjectKey.trim().toUpperCase() || "PROJECT"}
               </strong>
               /repos/
-              <strong className="text-foreground underline decoration-indigo-500 font-bold">
-                {syncTargetMode === "ALL" ? "{REPO_SLUG}" : (syncRepoSlug.trim().toLowerCase() || "repo")}
+              <strong className="font-bold text-foreground underline decoration-indigo-500">
+                {syncTargetMode === "ALL" ? "{REPO_SLUG}" : syncRepoSlug.trim().toLowerCase() || "repo"}
               </strong>
               /pull-requests?state={syncPrState}&limit=50
             </div>
             <p className="text-[10px] text-muted-foreground">
-              Pastikan Project Key adalah singkatan project di Bitbucket (contoh: <strong>TPE</strong>), bukan nama slug repositori.
+              Pastikan Project Key adalah singkatan project di Bitbucket (contoh: <strong>TPE</strong>), bukan nama slug
+              repositori.
             </p>
           </div>
 
           {/* Sync Result Feedback */}
           {syncResult && (
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3.5 space-y-2">
-              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-semibold text-xs">
+            <div className="space-y-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3.5">
+              <div className="flex items-center gap-2 font-semibold text-emerald-700 text-xs dark:text-emerald-400">
                 <CheckCircle2 className="size-4" />
                 <span>Sinkronisasi Selesai!</span>
               </div>
-              <div className="grid grid-cols-3 gap-2 text-center text-xs pt-1">
-                <div className="bg-background/80 rounded p-2 border">
-                  <span className="text-muted-foreground block text-[10px]">Total Ditarik</span>
-                  <strong className="font-mono text-sm text-foreground">{syncResult.totalSynced}</strong>
+              <div className="grid grid-cols-3 gap-2 pt-1 text-center text-xs">
+                <div className="rounded border bg-background/80 p-2">
+                  <span className="block text-[10px] text-muted-foreground">Total Ditarik</span>
+                  <strong className="font-mono text-foreground text-sm">{syncResult.totalSynced}</strong>
                 </div>
-                <div className="bg-background/80 rounded p-2 border">
-                  <span className="text-muted-foreground block text-[10px]">PR Baru</span>
-                  <strong className="font-mono text-sm text-emerald-600 dark:text-emerald-400">
+                <div className="rounded border bg-background/80 p-2">
+                  <span className="block text-[10px] text-muted-foreground">PR Baru</span>
+                  <strong className="font-mono text-emerald-600 text-sm dark:text-emerald-400">
                     +{syncResult.newCreated}
                   </strong>
                 </div>
-                <div className="bg-background/80 rounded p-2 border">
-                  <span className="text-muted-foreground block text-[10px]">Diperbarui</span>
-                  <strong className="font-mono text-sm text-indigo-600 dark:text-indigo-400">
+                <div className="rounded border bg-background/80 p-2">
+                  <span className="block text-[10px] text-muted-foreground">Diperbarui</span>
+                  <strong className="font-mono text-indigo-600 text-sm dark:text-indigo-400">
                     {syncResult.updatedCount}
                   </strong>
                 </div>
@@ -307,19 +313,14 @@ export function SyncPrDialog({ open, onOpenChange, onSyncSuccess }: SyncPrDialog
         </div>
 
         <DialogFooter>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onOpenChange(false)}
-            disabled={isSyncing}
-          >
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={isSyncing}>
             Tutup
           </Button>
           <Button
             size="sm"
             onClick={handleExecuteSync}
             disabled={isSyncing}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 font-semibold shadow-xs"
+            className="gap-2 bg-indigo-600 font-semibold text-white shadow-xs hover:bg-indigo-700"
           >
             {isSyncing ? (
               <>

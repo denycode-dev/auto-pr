@@ -1,18 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2, ChevronRight, Code2, Eye, GitCommit, History, Terminal } from "lucide-react";
+
+import { GitCommit, History, Terminal } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { PullRequest } from "@/data/code-review/types";
 
 interface ReviewRunsTabProps {
@@ -27,7 +22,7 @@ export function ReviewRunsTab({ pr }: ReviewRunsTabProps) {
     pullRequestId: pr.id,
     bitbucketPrId: pr.bitbucketPrId,
     commitHash: pr.latestCommitHash,
-    summary: pr.summary || "Review completed.",
+    summary: pr.summary ?? "Review completed.",
     recommendedStatus: pr.aiRecommendation,
     sopScore: pr.sopScore,
     totalIssues: pr.totalIssues,
@@ -49,11 +44,11 @@ export function ReviewRunsTab({ pr }: ReviewRunsTabProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <h3 className="flex items-center gap-2 font-semibold text-foreground text-sm">
             <History className="size-4 text-primary" />
             Riwayat Pemindaian (Commit Runs)
           </h3>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             Riwayat hasil pemindaian dan peninjauan AI terhadap commit Pull Request.
           </p>
         </div>
@@ -61,19 +56,19 @@ export function ReviewRunsTab({ pr }: ReviewRunsTabProps) {
 
       <div className="space-y-3">
         {/* Latest Run */}
-        <Card className="shadow-xs border overflow-hidden">
-          <CardContent className="p-4 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b">
+        <Card className="overflow-hidden border shadow-xs">
+          <CardContent className="space-y-3 p-4">
+            <div className="flex flex-col gap-3 border-b pb-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                   <GitCommit className="size-4" />
                 </div>
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-semibold text-foreground">
+                    <span className="font-mono font-semibold text-foreground text-xs">
                       {pr.latestCommitHash.slice(0, 10)}...
                     </span>
-                    <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-600">
+                    <Badge variant="outline" className="border-emerald-500/30 font-mono text-[10px] text-emerald-600">
                       Terkini
                     </Badge>
                   </div>
@@ -94,26 +89,22 @@ export function ReviewRunsTab({ pr }: ReviewRunsTabProps) {
               </Button>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-              <div className="rounded bg-muted/40 p-2 border">
-                <span className="text-muted-foreground block text-[10px]">Total Isu</span>
-                <span className="font-semibold text-foreground font-mono">{pr.totalIssues} temuan</span>
+            <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+              <div className="rounded border bg-muted/40 p-2">
+                <span className="block text-[10px] text-muted-foreground">Total Isu</span>
+                <span className="font-mono font-semibold text-foreground">{pr.totalIssues} temuan</span>
               </div>
-              <div className="rounded bg-muted/40 p-2 border">
-                <span className="text-muted-foreground block text-[10px]">Critical</span>
-                <span className="font-semibold text-rose-600 dark:text-rose-400 font-mono">
-                  {pr.criticalCount} isu
-                </span>
+              <div className="rounded border bg-muted/40 p-2">
+                <span className="block text-[10px] text-muted-foreground">Critical</span>
+                <span className="font-mono font-semibold text-rose-600 dark:text-rose-400">{pr.criticalCount} isu</span>
               </div>
-              <div className="rounded bg-muted/40 p-2 border">
-                <span className="text-muted-foreground block text-[10px]">Skor SOP</span>
-                <span className="font-semibold text-amber-600 dark:text-amber-400 font-mono">
-                  {pr.sopScore}%
-                </span>
+              <div className="rounded border bg-muted/40 p-2">
+                <span className="block text-[10px] text-muted-foreground">Skor SOP</span>
+                <span className="font-mono font-semibold text-amber-600 dark:text-amber-400">{pr.sopScore}%</span>
               </div>
-              <div className="rounded bg-muted/40 p-2 border">
-                <span className="text-muted-foreground block text-[10px]">Durasi Analisis</span>
-                <span className="font-semibold text-foreground font-mono">1.42s</span>
+              <div className="rounded border bg-muted/40 p-2">
+                <span className="block text-[10px] text-muted-foreground">Durasi Analisis</span>
+                <span className="font-mono font-semibold text-foreground">1.42s</span>
               </div>
             </div>
           </CardContent>
@@ -122,19 +113,19 @@ export function ReviewRunsTab({ pr }: ReviewRunsTabProps) {
 
       {/* Raw LLM JSON Dialog */}
       <Dialog open={!!selectedRunJson} onOpenChange={(open) => !open && setSelectedRunJson(null)}>
-        <DialogContent className="sm:max-w-[700px] max-h-[85vh] flex flex-col">
+        <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-[700px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 font-mono text-sm">
               <Terminal className="size-4 text-indigo-500" />
               Raw LLM Output (OpenAI SDK Structured Response)
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Payload JSON mentah yang diterima backend dari endpoint OpenAI Gateway Qodeer untuk audit & debugging transparansi.
+              Payload JSON mentah yang diterima backend dari endpoint OpenAI untuk audit & debugging transparansi.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-auto rounded bg-zinc-950 p-3 border border-zinc-800">
-            <pre className="font-mono text-[11px] text-emerald-400 whitespace-pre">
+          <div className="flex-1 overflow-auto rounded border border-zinc-800 bg-zinc-950 p-3">
+            <pre className="whitespace-pre font-mono text-[11px] text-emerald-400">
               {JSON.stringify(selectedRunJson, null, 2)}
             </pre>
           </div>

@@ -1,15 +1,16 @@
-import { NextRequest } from "next/server";
-import prisma from "@/lib/prisma";
-import { apiError, apiSuccess } from "@/lib/api-response";
-import { bitbucketClient } from "@/server/bitbucket/client";
-import { calculateDiffStats, parseUnifiedDiffForViewer } from "@/server/review/diff-filter";
+import type { NextRequest } from "next/server";
+
 import type { ReviewIssue } from "@/data/code-review/types";
+import { apiError, apiSuccess } from "@/lib/api-response";
+import prisma from "@/lib/prisma";
+import { bitbucketClient } from "@/server/bitbucket/client";
+import { calculateDiffStats, deduplicateIssues, parseUnifiedDiffForViewer } from "@/server/review/diff-filter";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-export async function GET(req: NextRequest, { params }: RouteParams) {
+export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
@@ -27,7 +28,6 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         repository: true,
         reviewRuns: {
           orderBy: { createdAt: "desc" },
-          take: 1,
           include: {
             issues: {
               orderBy: [{ severity: "asc" }, { lineNumber: "asc" }],
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         rawDiff = await bitbucketClient.getPullRequestDiff(
           pr.repository.projectKey,
           pr.repository.slug,
-          pr.bitbucketPrId
+          pr.bitbucketPrId,
         );
 
         if (rawDiff && rawDiff.trim().length > 0) {
@@ -69,8 +69,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const latestRun = pr.reviewRuns[0];
-    const issues: ReviewIssue[] = (latestRun?.issues || []).map((iss) => ({
+    const allIssuesRaw = pr.reviewRuns.flatMap((r) => r.issues);
+    const uniqueIssues = deduplicateIssues(allIssuesRaw);
+    const issues: ReviewIssue[] = uniqueIssues.map((iss) => ({
       id: iss.id,
       reviewRunId: iss.reviewRunId,
       filePath: iss.filePath,
@@ -83,15 +84,14 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       suggestedFix: iss.suggestedFix,
       bitbucketCommentId: iss.bitbucketCommentId ? iss.bitbucketCommentId.toString() : undefined,
       isPosted: iss.isPosted,
+      isFalsePositive: Boolean((iss as { isFalsePositive?: boolean }).isFalsePositive),
       createdAt: iss.createdAt.toISOString(),
     }));
 
+    // Parse unified diff into rich file, hunk, and line structures
     const parsedFiles = parseUnifiedDiffForViewer(rawDiff, issues);
 
-    return apiSuccess(
-      { files: parsedFiles },
-      "Diff Pull Request berhasil dimuat"
-    );
+    return apiSuccess({ files: parsedFiles }, "Diff Pull Request berhasil dimuat");
   } catch (error) {
     console.error("[API GET /pull-requests/:id/diff error]:", error);
     return apiError("Gagal memuat diff pull request", "DIFF_ERROR", String(error), 500);

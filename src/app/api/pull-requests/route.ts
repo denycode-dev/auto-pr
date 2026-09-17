@@ -1,6 +1,7 @@
-import { NextRequest } from "next/server";
-import prisma from "@/lib/prisma";
+import type { NextRequest } from "next/server";
+
 import { apiError, apiSuccess } from "@/lib/api-response";
+import prisma from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
   try {
@@ -159,7 +160,7 @@ export async function POST(req: NextRequest) {
         "Parameter repository, bitbucketPrId, title, sourceBranch, targetBranch, dan latestCommitHash wajib diisi",
         "VALIDATION_ERROR",
         [],
-        400
+        400,
       );
     }
 

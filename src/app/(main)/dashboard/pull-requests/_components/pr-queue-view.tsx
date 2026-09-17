@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { PrQueueHeader } from "./pr-queue-header";
+
 import { PrDataTable } from "./pr-data-table";
+import { PrQueueHeader } from "./pr-queue-header";
 import { SyncPrDialog } from "./sync-pr-dialog";
 
 export function PrQueueView() {
@@ -29,15 +30,8 @@ export function PrQueueView() {
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}
       />
-      <PrDataTable
-        onOpenSyncDialog={() => setIsSyncOpen(true)}
-        refreshKey={refreshKey}
-      />
-      <SyncPrDialog
-        open={isSyncOpen}
-        onOpenChange={setIsSyncOpen}
-        onSyncSuccess={handleSyncSuccess}
-      />
+      <PrDataTable onOpenSyncDialog={() => setIsSyncOpen(true)} refreshKey={refreshKey} />
+      <SyncPrDialog open={isSyncOpen} onOpenChange={setIsSyncOpen} onSyncSuccess={handleSyncSuccess} />
     </div>
   );
 }
