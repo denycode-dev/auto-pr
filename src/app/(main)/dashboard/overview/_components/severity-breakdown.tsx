@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Shield, AlertTriangle, AlertCircle, Info } from "lucide-react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AlertCircle, AlertTriangle, Info, Shield } from "lucide-react";
+
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function SeverityBreakdown() {
   const [breakdown, setBreakdown] = React.useState<{
@@ -16,7 +17,10 @@ export function SeverityBreakdown() {
 
   React.useEffect(() => {
     fetch("/api/overview")
-      .then((res) => res.json())
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      })
       .then((res) => {
         if (res.success && res.data?.severityBreakdown) {
           const list = res.data.severityBreakdown as Array<{ severity: string; count: number }>;
@@ -92,7 +96,10 @@ export function SeverityBreakdown() {
         ) : (
           <div className="divide-y divide-border/60">
             {severityItems.map((item) => (
-              <div key={item.name} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0 text-xs gap-2">
+              <div
+                key={item.name}
+                className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0 text-xs gap-2"
+              >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <item.icon className={`size-4 shrink-0 ${item.color}`} />
                   <div className="flex flex-col">
@@ -103,7 +110,10 @@ export function SeverityBreakdown() {
                 <div className="flex items-center gap-1.5 font-mono shrink-0">
                   {item.count > 0 ? (
                     item.badgeVariant ? (
-                      <Badge variant={item.badgeVariant} className="h-5 px-1.5 text-[10px] font-semibold whitespace-nowrap">
+                      <Badge
+                        variant={item.badgeVariant}
+                        className="h-5 px-1.5 text-[10px] font-semibold whitespace-nowrap"
+                      >
                         {item.count} Isu
                       </Badge>
                     ) : (

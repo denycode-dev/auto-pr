@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+
 import { CheckCircle2, GitBranch, GitPullRequest, Globe, Server, ShieldCheck, Zap } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,7 +23,8 @@ export function RepoGrid({ repositories, onToggleActive }: RepoGridProps) {
         <Server className="size-8 mx-auto text-muted-foreground/60 mb-3" />
         <h4 className="font-semibold text-sm text-foreground mb-1">Belum Ada Repositori Terhubung</h4>
         <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-          Database repositori kosong. Gunakan tombol "Hubungkan Repositori" untuk mendaftarkan repositori Bitbucket Server baru.
+          Database repositori kosong. Gunakan tombol "Hubungkan Repositori" untuk mendaftarkan repositori Bitbucket
+          Server baru.
         </p>
       </div>
     );
@@ -41,9 +43,7 @@ export function RepoGrid({ repositories, onToggleActive }: RepoGridProps) {
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">
-                {repo.isActive ? "Aktif" : "Nonaktif"}
-              </span>
+              <span className="text-xs text-muted-foreground">{repo.isActive ? "Aktif" : "Nonaktif"}</span>
               <Switch
                 checked={repo.isActive}
                 onCheckedChange={(checked) => {
@@ -81,7 +81,10 @@ export function RepoGrid({ repositories, onToggleActive }: RepoGridProps) {
                   <CheckCircle2 className="size-3 text-emerald-500" />
                   Protokol:
                 </span>
-                <Badge variant="outline" className="border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 text-[10px] font-mono">
+                <Badge
+                  variant="outline"
+                  className="border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 text-[10px] font-mono"
+                >
                   REST API 1.0 (Direct)
                 </Badge>
               </div>

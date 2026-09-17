@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+
 import { FolderGit2, Plus, RefreshCw, Server } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +17,10 @@ export function RepoHeader({ onConnectNew }: RepoHeaderProps) {
       <div className="flex flex-col gap-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="font-semibold text-2xl tracking-tight sm:text-3xl">Manajemen Repositori Bitbucket</h1>
-          <Badge variant="outline" className="border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs shrink-0 whitespace-nowrap font-mono">
+          <Badge
+            variant="outline"
+            className="border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs shrink-0 whitespace-nowrap font-mono"
+          >
             REST API 100%
           </Badge>
         </div>

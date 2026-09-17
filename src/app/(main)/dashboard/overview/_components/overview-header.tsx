@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+
 import { Bot, CheckCircle2, GitPullRequest, RefreshCw, Server } from "lucide-react";
 import { toast } from "sonner";
 
@@ -66,17 +68,23 @@ export function OverviewHeader() {
       <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/60">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Server className="size-3.5 text-primary" />
-          <span>Bitbucket Server: <strong className="font-medium text-foreground">v8.19.0 (Data Center)</strong></span>
+          <span>
+            Bitbucket Server: <strong className="font-medium text-foreground">v8.19.0 (Data Center)</strong>
+          </span>
         </div>
         <span className="text-border">•</span>
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Bot className="size-3.5 text-primary" />
-          <span>Analisis AI: <strong className="font-medium text-foreground">Coding SOP & Keamanan</strong></span>
+          <span>
+            Analisis AI: <strong className="font-medium text-foreground">Coding SOP & Keamanan</strong>
+          </span>
         </div>
         <span className="text-border">•</span>
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <CheckCircle2 className="size-3.5 text-emerald-500" />
-          <span>Sinkronisasi: <strong className="font-medium text-foreground">Bitbucket REST API 8.19</strong></span>
+          <span>
+            Sinkronisasi: <strong className="font-medium text-foreground">Bitbucket REST API 8.19</strong>
+          </span>
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
-import { NextRequest } from "next/server";
-import prisma from "@/lib/prisma";
+import type { NextRequest } from "next/server";
+
 import { apiError, apiSuccess } from "@/lib/api-response";
+import prisma from "@/lib/prisma";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -28,7 +29,12 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         },
       });
       if (conflict && conflict.id !== id) {
-        return apiError(`Repositori dengan Project Key '${newProjectKey}' dan Slug '${newSlug}' sudah ada`, "CONFLICT", [], 409);
+        return apiError(
+          `Repositori dengan Project Key '${newProjectKey}' dan Slug '${newSlug}' sudah ada`,
+          "CONFLICT",
+          [],
+          409,
+        );
       }
     }
 
@@ -37,7 +43,12 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       data: {
         projectKey: newProjectKey,
         slug: newSlug,
-        name: name !== undefined ? name : (newProjectKey !== existing.projectKey || newSlug !== existing.slug ? `${newProjectKey} / ${newSlug}` : existing.name),
+        name:
+          name !== undefined
+            ? name
+            : newProjectKey !== existing.projectKey || newSlug !== existing.slug
+              ? `${newProjectKey} / ${newSlug}`
+              : existing.name,
         isActive: isActive !== undefined ? Boolean(isActive) : existing.isActive,
       },
     });

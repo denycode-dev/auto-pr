@@ -1,13 +1,8 @@
 "use client";
 
 import * as React from "react";
-import {
-  AlertTriangle,
-  Clock,
-  GitPullRequest,
-  ShieldCheck,
-  Zap,
-} from "lucide-react";
+
+import { AlertTriangle, Clock, GitPullRequest, ShieldCheck, Zap } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -25,7 +20,10 @@ export function MetricCards() {
 
   React.useEffect(() => {
     fetch("/api/overview")
-      .then((res) => res.json())
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      })
       .then((res) => {
         if (res.success && res.data?.metrics) {
           setMetricsData(res.data.metrics);
@@ -44,7 +42,7 @@ export function MetricCards() {
   const metrics = [
     {
       title: "Menunggu Review",
-      fullTitle: "Menunggu Keputusan Senior",
+      fullTitle: "Menunggu Keputusan",
       value: `${pendingSenior} PR`,
       subtitle: pendingSenior > 0 ? "Perlu tindakan senior" : "Tidak ada antrean",
       fullSubtitle: "Memerlukan tindakan Approve / Needs Work",
@@ -156,10 +154,7 @@ export function MetricCards() {
             </div>
 
             {/* Subtitle */}
-            <p
-              className="text-[11px] text-muted-foreground truncate leading-tight pt-0.5"
-              title={item.fullSubtitle}
-            >
+            <p className="text-[11px] text-muted-foreground truncate leading-tight pt-0.5" title={item.fullSubtitle}>
               {item.subtitle}
             </p>
           </CardContent>

@@ -1,18 +1,8 @@
 "use client";
 
 import * as React from "react";
-import {
-  Bot,
-  CheckCircle2,
-  Cpu,
-  Eye,
-  EyeOff,
-  Filter,
-  RefreshCw,
-  Save,
-  Server,
-  XCircle,
-} from "lucide-react";
+
+import { Bot, CheckCircle2, Cpu, Eye, EyeOff, Filter, RefreshCw, Save, Server, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -85,7 +75,7 @@ export function SettingsView() {
   }, []);
 
   React.useEffect(() => {
-    loadSettings();
+    void loadSettings();
   }, [loadSettings]);
 
   // Save Bitbucket Configuration to Database
@@ -242,43 +232,16 @@ export function SettingsView() {
                   <Server className="size-4 text-primary" />
                   <CardTitle className="text-base font-semibold">Bitbucket Server v8.19</CardTitle>
                 </div>
-                <Badge
-                  variant="outline"
-                  className={`text-xs gap-1 font-mono ${
-                    bbStatus === "OK"
-                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                      : bbStatus === "FAILED"
-                        ? "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400"
-                        : "border-border bg-muted/30 text-muted-foreground"
-                  }`}
-                >
-                  {bbStatus === "OK" ? (
-                    <>
-                      <CheckCircle2 className="size-3" />
-                      Terhubung
-                    </>
-                  ) : bbStatus === "FAILED" ? (
-                    <>
-                      <XCircle className="size-3" />
-                      Offline / Gagal
-                    </>
-                  ) : (
-                    "Siap Diuji"
-                  )}
-                </Badge>
               </div>
-              <CardDescription className="text-xs">
-                Koneksi REST API untuk operasi fetch diff, inline comments, approve, needs work, dan decline.
-              </CardDescription>
             </CardHeader>
 
             <CardContent className="p-4 space-y-4 text-xs">
               <div className="space-y-1.5">
-                <label className="font-semibold text-foreground flex items-center justify-between">
+                <label htmlFor="bb-url" className="font-semibold text-foreground flex items-center justify-between">
                   <span>Bitbucket Server Endpoint URL</span>
-                  <span className="text-[11px] text-muted-foreground font-mono">Contoh: https://bitbucket.bri.co.id</span>
                 </label>
                 <Input
+                  id="bb-url"
                   value={bbUrl}
                   onChange={(e) => setBbUrl(e.target.value)}
                   placeholder="https://bitbucket.bri.co.id"
@@ -288,11 +251,13 @@ export function SettingsView() {
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="font-semibold text-foreground">Personal Access Token (PAT)</label>
-                  <span className="text-[11px] text-muted-foreground font-mono">Kunci Otentikasi Bot</span>
+                  <label htmlFor="bb-token" className="font-semibold text-foreground">
+                    Personal Access Token (PAT)
+                  </label>
                 </div>
                 <div className="relative">
                   <Input
+                    id="bb-token"
                     type={showBbToken ? "text" : "password"}
                     value={bbToken}
                     onChange={(e) => setBbToken(e.target.value)}
@@ -310,31 +275,20 @@ export function SettingsView() {
                 </div>
               </div>
 
-
               <div className="space-y-1.5">
-                <label className="font-semibold text-foreground flex items-center justify-between">
-                  <span>Senior Reviewer User Slug</span>
-                  <span className="text-[11px] text-muted-foreground font-mono">Partisipan Needs Work</span>
+                <label
+                  htmlFor="bb-senior-slug"
+                  className="font-semibold text-foreground flex items-center justify-between"
+                >
+                  <span>Reviewer User Slug</span>
                 </label>
                 <Input
+                  id="bb-senior-slug"
                   value={bbSeniorSlug}
                   onChange={(e) => setBbSeniorSlug(e.target.value)}
                   placeholder="senior.lead"
                   className="font-mono text-xs h-9"
                 />
-              </div>
-
-              <div className="rounded bg-muted/40 p-3 border space-y-1.5 text-[11px]">
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Header Otomatis:</span>
-                  <code className="font-mono text-foreground">X-Atlassian-Token: no-check</code>
-                </div>
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Penyimpanan:</span>
-                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
-                    PostgreSQL Table (system_settings)
-                  </span>
-                </div>
               </div>
             </CardContent>
           </div>
@@ -371,45 +325,21 @@ export function SettingsView() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Bot className="size-4 text-indigo-500" />
-                  <CardTitle className="text-base font-semibold">OpenAI SDK (Qodeer Gateway)</CardTitle>
+                  <CardTitle className="text-base font-semibold">OpenAI SDK</CardTitle>
                 </div>
-                <Badge
-                  variant="outline"
-                  className={`text-xs gap-1 font-mono ${
-                    aiStatus === "OK"
-                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                      : aiStatus === "FAILED"
-                        ? "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400"
-                        : "border-border bg-muted/30 text-muted-foreground"
-                  }`}
-                >
-                  {aiStatus === "OK" ? (
-                    <>
-                      <CheckCircle2 className="size-3" />
-                      Tersedia
-                    </>
-                  ) : aiStatus === "FAILED" ? (
-                    <>
-                      <XCircle className="size-3" />
-                      Offline / Gagal
-                    </>
-                  ) : (
-                    "Siap Diuji"
-                  )}
-                </Badge>
               </div>
-              <CardDescription className="text-xs">
-                Spesifikasi endpoint AI Review Worker sesuai Aturan Bisnis BR-03 (OpenAI SDK kompatibel).
-              </CardDescription>
             </CardHeader>
 
             <CardContent className="p-4 space-y-4 text-xs">
               <div className="space-y-1.5">
-                <label className="font-semibold text-foreground flex items-center justify-between">
+                <label
+                  htmlFor="ai-base-url"
+                  className="font-semibold text-foreground flex items-center justify-between"
+                >
                   <span>Custom Base URL (OpenAI Client)</span>
-                  <span className="text-[11px] text-muted-foreground font-mono">Endpoint Gateway</span>
                 </label>
                 <Input
+                  id="ai-base-url"
                   value={aiBaseUrl}
                   onChange={(e) => setAiBaseUrl(e.target.value)}
                   placeholder="https://organization.api-github.com/v1"
@@ -419,15 +349,17 @@ export function SettingsView() {
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="font-semibold text-foreground">API Key / Token Otentikasi</label>
-                  <span className="text-[11px] text-muted-foreground font-mono">Header: Authorization Bearer</span>
+                  <label htmlFor="ai-api-key" className="font-semibold text-foreground">
+                    API Key / Token Otentikasi
+                  </label>
                 </div>
                 <div className="relative">
                   <Input
+                    id="ai-api-key"
                     type={showAiKey ? "text" : "password"}
                     value={aiApiKey}
                     onChange={(e) => setAiApiKey(e.target.value)}
-                    placeholder="Masukkan API Key Qodeer Gateway..."
+                    placeholder="Masukkan API Key..."
                     className="font-mono text-xs h-9 pr-10"
                   />
                   <button
@@ -442,29 +374,16 @@ export function SettingsView() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="font-semibold text-foreground flex items-center justify-between">
+                <label htmlFor="ai-model" className="font-semibold text-foreground flex items-center justify-between">
                   <span>Model Identifier</span>
-                  <span className="text-[11px] text-muted-foreground font-mono">Contoh: deepseek-flash</span>
                 </label>
                 <Input
+                  id="ai-model"
                   value={aiModel}
                   onChange={(e) => setAiModel(e.target.value)}
                   placeholder="deepseek-flash"
                   className="font-mono text-xs h-9"
                 />
-              </div>
-
-              <div className="rounded bg-muted/40 p-3 border space-y-1.5 text-[11px]">
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Format Output:</span>
-                  <code className="font-mono text-foreground">response_format: json_object</code>
-                </div>
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Penyimpanan:</span>
-                  <span className="font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
-                    PostgreSQL Table (system_settings)
-                  </span>
-                </div>
               </div>
             </CardContent>
           </div>
@@ -533,7 +452,8 @@ export function SettingsView() {
           </div>
 
           <div className="rounded bg-primary/5 border border-primary/10 p-3 text-[11px] text-muted-foreground">
-            <strong>Batas Partisi Diff (BR-10):</strong> Jika diff melebihi 30.000 token atau 100 KB, sistem otomatis membagi partisi per file (chunking) untuk menjamin stabilitas LLM context window.
+            <strong>Batas Partisi Diff (BR-10):</strong> Jika diff melebihi 30.000 token atau 100 KB, sistem otomatis
+            membagi partisi per file (chunking) untuk menjamin stabilitas LLM context window.
           </div>
         </CardContent>
       </Card>

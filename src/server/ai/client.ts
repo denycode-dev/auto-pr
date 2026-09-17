@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+
 import { getDynamicSystemConfig } from "@/server/db/settings";
 
 const defaultAiTimeout = Number(process.env.AI_REQUEST_TIMEOUT_MS) || 240000;

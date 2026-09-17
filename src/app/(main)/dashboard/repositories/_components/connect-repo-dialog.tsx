@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+
 import { Server } from "lucide-react";
 import { toast } from "sonner";
 
@@ -95,8 +96,11 @@ export function ConnectRepoDialog({ open, onOpenChange, onAddRepo }: ConnectRepo
           <div className="space-y-3 py-2 text-xs">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="font-semibold text-foreground">Project Key (Bitbucket)</label>
+                <label htmlFor="connect-project-key" className="font-semibold text-foreground">
+                  Project Key (Bitbucket)
+                </label>
                 <Input
+                  id="connect-project-key"
                   placeholder="Contoh: FIN, CORE"
                   value={projectKey}
                   onChange={(e) => setProjectKey(e.target.value)}
@@ -105,8 +109,11 @@ export function ConnectRepoDialog({ open, onOpenChange, onAddRepo }: ConnectRepo
               </div>
 
               <div className="space-y-1.5">
-                <label className="font-semibold text-foreground">Repository Slug</label>
+                <label htmlFor="connect-repo-slug" className="font-semibold text-foreground">
+                  Repository Slug
+                </label>
                 <Input
+                  id="connect-repo-slug"
                   placeholder="Contoh: payment-service"
                   value={slug}
                   onChange={(e) => setSlug(e.target.value)}
@@ -116,8 +123,11 @@ export function ConnectRepoDialog({ open, onOpenChange, onAddRepo }: ConnectRepo
             </div>
 
             <div className="space-y-1.5">
-              <label className="font-semibold text-foreground">Nama Deskriptif Repositori</label>
+              <label htmlFor="connect-repo-name" className="font-semibold text-foreground">
+                Nama Deskriptif Repositori
+              </label>
               <Input
+                id="connect-repo-name"
                 placeholder="Contoh: Financial Payment Gateway API"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -126,8 +136,11 @@ export function ConnectRepoDialog({ open, onOpenChange, onAddRepo }: ConnectRepo
             </div>
 
             <div className="space-y-1.5">
-              <label className="font-semibold text-foreground">Default Target Branch</label>
+              <label htmlFor="connect-default-branch" className="font-semibold text-foreground">
+                Default Target Branch
+              </label>
               <Input
+                id="connect-default-branch"
                 value={defaultBranch}
                 onChange={(e) => setDefaultBranch(e.target.value)}
                 placeholder="main / master"

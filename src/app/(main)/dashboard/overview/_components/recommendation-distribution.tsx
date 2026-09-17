@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2, AlertCircle, XCircle, Bot } from "lucide-react";
+
+import { AlertCircle, Bot, CheckCircle2, XCircle } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -16,7 +17,10 @@ export function RecommendationDistribution() {
 
   React.useEffect(() => {
     fetch("/api/overview")
-      .then((res) => res.json())
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      })
       .then((res) => {
         if (res.success && res.data?.recommendationDistribution) {
           const list = res.data.recommendationDistribution as Array<{ name: string; value: number }>;
@@ -74,9 +78,7 @@ export function RecommendationDistribution() {
               <Bot className="size-4 text-indigo-500 shrink-0" />
               <span className="truncate">Distribusi Rekomendasi AI</span>
             </CardTitle>
-            <CardDescription className="text-xs">
-              Rasio saran status yang dihasilkan OpenAI SDK (Qodeer Gateway)
-            </CardDescription>
+            <CardDescription className="text-xs">Rasio saran status yang dihasilkan OpenAI SDK</CardDescription>
           </div>
           <span className="inline-flex items-center self-start sm:self-center shrink-0 whitespace-nowrap text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shadow-xs">
             {total > 0 ? `${agreementRate}% Keselarasan Senior` : "Belum Ada Data PR"}
@@ -110,7 +112,8 @@ export function RecommendationDistribution() {
         )}
 
         <div className="rounded-lg border border-border/80 bg-muted/40 p-3 text-xs text-muted-foreground">
-          <strong className="text-foreground font-medium">Prinsip Human-in-the-Loop (BR-07):</strong> AI hanya bertugas memberikan rekomendasi. Keputusan final 100% berada di tangan Senior Engineer melalui panel review antrean.
+          <strong className="text-foreground font-medium">Prinsip Human-in-the-Loop (BR-07):</strong> AI hanya bertugas
+          memberikan rekomendasi. Keputusan final 100% berada di tangan Senior Engineer melalui panel review antrean.
         </div>
       </CardContent>
     </Card>

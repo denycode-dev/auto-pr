@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { ArrowRight, CheckCircle2, AlertTriangle, XCircle, GitBranch, ArrowUpRight } from "lucide-react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
+
+import { AlertTriangle, ArrowRight, ArrowUpRight, CheckCircle2, GitBranch, XCircle } from "lucide-react";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { PullRequest } from "@/data/code-review/types";
 
@@ -16,7 +18,10 @@ export function ActiveQueuePreview() {
 
   React.useEffect(() => {
     fetch("/api/pull-requests?status=OPEN")
-      .then((res) => res.json())
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      })
       .then((res) => {
         if (res.success && Array.isArray(res.data)) {
           setPrs(res.data);
@@ -139,7 +144,10 @@ export function ActiveQueuePreview() {
                           </Badge>
                         )}
                         {!pr.aiRecommendation && (
-                          <Badge variant="outline" className="border-muted bg-muted/40 text-muted-foreground text-[11px]">
+                          <Badge
+                            variant="outline"
+                            className="border-muted bg-muted/40 text-muted-foreground text-[11px]"
+                          >
                             Menganalisis...
                           </Badge>
                         )}
@@ -180,7 +188,12 @@ export function ActiveQueuePreview() {
                       </TableCell>
 
                       <TableCell className="text-right pr-4">
-                        <Button asChild size="sm" variant="outline" className="h-7 gap-1 text-xs shrink-0 whitespace-nowrap">
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="outline"
+                          className="h-7 gap-1 text-xs shrink-0 whitespace-nowrap"
+                        >
                           <Link href={`/dashboard/pull-requests/${pr.id}`}>
                             Review PR
                             <ArrowUpRight className="size-3" />

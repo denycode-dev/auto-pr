@@ -31,12 +31,20 @@ export async function getDynamicSystemConfig(): Promise<DynamicSystemConfig> {
 
   return {
     bitbucket: {
-      baseUrl: (settingsMap["bitbucket_base_url"] || process.env.BITBUCKET_BASE_URL || "https://bitbucket.bri.co.id").replace(/\/$/, ""),
+      baseUrl: (
+        settingsMap["bitbucket_base_url"] ||
+        process.env.BITBUCKET_BASE_URL ||
+        "https://bitbucket.bri.co.id"
+      ).replace(/\/$/, ""),
       token: settingsMap["bitbucket_access_token"] ?? process.env.BITBUCKET_ACCESS_TOKEN ?? "",
       seniorUserSlug: settingsMap["senior_user_slug"] || process.env.SENIOR_USER_SLUG || "senior.lead",
     },
     ai: {
-      baseUrl: (settingsMap["openai_base_url"] || process.env.OPENAI_BASE_URL || "https://organization.api-github.com/v1").replace(/\/$/, ""),
+      baseUrl: (
+        settingsMap["openai_base_url"] ||
+        process.env.OPENAI_BASE_URL ||
+        "https://organization.api-github.com/v1"
+      ).replace(/\/$/, ""),
       apiKey: settingsMap["qodeer_api_key"] ?? process.env.QODEER_API_KEY ?? "",
       model: settingsMap["openai_model"] || process.env.OPENAI_MODEL || "deepseek-flash",
     },
@@ -54,20 +62,22 @@ export async function saveDynamicSystemSettings(
     openai_base_url: string;
     qodeer_api_key: string;
     openai_model: string;
-  }>
+  }>,
 ) {
-  const operations = Object.entries(settings).map(([key, value]) => {
-    if (value === undefined) return null;
-    let val = String(value).trim();
-    if (key === "bitbucket_access_token" && val.startsWith("mBBDC-")) {
-      val = val.substring(1);
-    }
-    return prisma.systemSetting.upsert({
-      where: { key },
-      update: { value: val },
-      create: { key, value: val },
-    });
-  }).filter(Boolean);
+  const operations = Object.entries(settings)
+    .map(([key, value]) => {
+      if (value === undefined) return null;
+      let val = String(value).trim();
+      if (key === "bitbucket_access_token" && val.startsWith("mBBDC-")) {
+        val = val.substring(1);
+      }
+      return prisma.systemSetting.upsert({
+        where: { key },
+        update: { value: val },
+        create: { key, value: val },
+      });
+    })
+    .filter(Boolean);
 
   await prisma.$transaction(operations as any);
   return await getDynamicSystemConfig();

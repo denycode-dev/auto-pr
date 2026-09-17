@@ -73,7 +73,7 @@ export class BitbucketClient {
     projectKey: string,
     repositorySlug: string,
     state: "OPEN" | "MERGED" | "DECLINED" | "ALL" = "OPEN",
-    limit = 50
+    limit = 50,
   ): Promise<BitbucketPullRequestResponse[]> {
     const { baseUrl, headers } = await this.getConfig();
     const url = `${baseUrl}/rest/api/1.0/projects/${projectKey}/repos/${repositorySlug}/pull-requests?state=${state}&limit=${limit}`;
@@ -103,7 +103,7 @@ export class BitbucketClient {
   async getPullRequest(
     projectKey: string,
     repositorySlug: string,
-    pullRequestId: number
+    pullRequestId: number,
   ): Promise<BitbucketPullRequestResponse | null> {
     const { baseUrl, headers } = await this.getConfig();
     const url = `${baseUrl}/rest/api/1.0/projects/${projectKey}/repos/${repositorySlug}/pull-requests/${pullRequestId}`;
@@ -126,11 +126,7 @@ export class BitbucketClient {
   /**
    * Fetch raw diff for pull request
    */
-  async getPullRequestDiff(
-    projectKey: string,
-    repositorySlug: string,
-    pullRequestId: number
-  ): Promise<string> {
+  async getPullRequestDiff(projectKey: string, repositorySlug: string, pullRequestId: number): Promise<string> {
     const { baseUrl, headers } = await this.getConfig();
     const url = `${baseUrl}/rest/api/1.0/projects/${projectKey}/repos/${repositorySlug}/pull-requests/${pullRequestId}/diff`;
     try {
@@ -155,11 +151,7 @@ export class BitbucketClient {
   /**
    * Fetch .review-rules.md file from source branch if present
    */
-  async getRepoLocalSop(
-    projectKey: string,
-    repositorySlug: string,
-    sourceBranch: string
-  ): Promise<string | null> {
+  async getRepoLocalSop(projectKey: string, repositorySlug: string, sourceBranch: string): Promise<string | null> {
     const { baseUrl, headers } = await this.getConfig();
     const cleanBranch = sourceBranch.replace(/^refs\/heads\//, "");
     const url = `${baseUrl}/rest/api/1.0/projects/${projectKey}/repos/${repositorySlug}/raw/.review-rules.md?at=${encodeURIComponent(cleanBranch)}`;
@@ -192,7 +184,7 @@ export class BitbucketClient {
     projectKey: string,
     repositorySlug: string,
     pullRequestId: number,
-    payload: BitbucketCommentPayload
+    payload: BitbucketCommentPayload,
   ): Promise<{ id: number; text: string } | null> {
     const { baseUrl, headers } = await this.getConfig();
     const url = `${baseUrl}/rest/api/1.0/projects/${projectKey}/repos/${repositorySlug}/pull-requests/${pullRequestId}/comments`;
@@ -221,7 +213,7 @@ export class BitbucketClient {
   async approvePullRequest(
     projectKey: string,
     repositorySlug: string,
-    pullRequestId: number
+    pullRequestId: number,
   ): Promise<{ success: boolean; data?: unknown; error?: string }> {
     const { baseUrl, headers } = await this.getConfig();
     const url = `${baseUrl}/rest/api/1.0/projects/${projectKey}/repos/${repositorySlug}/pull-requests/${pullRequestId}/approve`;
@@ -257,10 +249,10 @@ export class BitbucketClient {
     projectKey: string,
     repositorySlug: string,
     pullRequestId: number,
-    seniorUserSlug?: string
+    seniorUserSlug?: string,
   ): Promise<{ success: boolean; data?: unknown; error?: string }> {
     const { baseUrl, headers, seniorUserSlug: defaultSeniorSlug } = await this.getConfig();
-    const userSlug = seniorUserSlug || defaultSeniorSlug || "senior.lead";
+    const userSlug = seniorUserSlug ?? defaultSeniorSlug ?? "senior.lead";
     const url = `${baseUrl}/rest/api/1.0/projects/${projectKey}/repos/${repositorySlug}/pull-requests/${pullRequestId}/participants/${userSlug}`;
 
     try {
@@ -295,7 +287,7 @@ export class BitbucketClient {
     projectKey: string,
     repositorySlug: string,
     pullRequestId: number,
-    version?: number
+    version?: number,
   ): Promise<{ success: boolean; data?: unknown; error?: string }> {
     const { baseUrl, headers } = await this.getConfig();
     let currentVersion = version;

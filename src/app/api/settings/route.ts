@@ -1,4 +1,5 @@
-import { NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
+
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { getDynamicSystemConfig, saveDynamicSystemSettings } from "@/server/db/settings";
 

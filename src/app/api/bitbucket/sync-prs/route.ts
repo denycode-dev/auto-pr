@@ -1,6 +1,7 @@
-import { NextRequest } from "next/server";
-import prisma from "@/lib/prisma";
+import type { NextRequest } from "next/server";
+
 import { apiError, apiSuccess } from "@/lib/api-response";
+import prisma from "@/lib/prisma";
 import { bitbucketClient } from "@/server/bitbucket/client";
 
 export async function POST(req: NextRequest) {
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
           "Belum ada repositori aktif yang terdaftar di database untuk disinkronkan. Masukkan Project Key dan Repo Slug atau daftarkan repositori terlebih dahulu.",
           "NO_REPOSITORIES_FOUND",
           [],
-          400
+          400,
         );
       }
       targetRepos = existingRepos;
@@ -84,12 +85,7 @@ export async function POST(req: NextRequest) {
     // 2. Fetch and synchronize PRs from Bitbucket Server for each repository
     for (const repo of targetRepos) {
       try {
-        const bitbucketPrs = await bitbucketClient.getPullRequests(
-          repo.projectKey,
-          repo.slug,
-          prState,
-          50
-        );
+        const bitbucketPrs = await bitbucketClient.getPullRequests(repo.projectKey, repo.slug, prState, 50);
 
         for (const bbPr of bitbucketPrs) {
           totalSynced++;
@@ -154,12 +150,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (targetRepos.length === 1 && errors.length > 0) {
-      return apiError(
-        `Gagal menarik pull request: ${errors[0].error}`,
-        "BITBUCKET_SYNC_ERROR",
-        errors,
-        502
-      );
+      return apiError(`Gagal menarik pull request: ${errors[0].error}`, "BITBUCKET_SYNC_ERROR", errors, 502);
     }
 
     return apiSuccess(
@@ -170,7 +161,7 @@ export async function POST(req: NextRequest) {
         repoCount: targetRepos.length,
         errors,
       },
-      `Sinkronisasi manual selesai. ${newCreated} PR baru didaftarkan, ${updatedCount} PR diperbarui dari Bitbucket Server.`
+      `Sinkronisasi manual selesai. ${newCreated} PR baru didaftarkan, ${updatedCount} PR diperbarui dari Bitbucket Server.`,
     );
   } catch (error) {
     console.error("[POST /api/bitbucket/sync-prs error]:", error);

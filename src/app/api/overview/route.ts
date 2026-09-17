@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+
 import { apiError, apiSuccess } from "@/lib/api-response";
+import prisma from "@/lib/prisma";
 
 export async function GET() {
   try {
@@ -67,8 +68,7 @@ export async function GET() {
       totalSopScore += run.sopScore;
     }
 
-    const avgSopScore =
-      reviewRuns.length > 0 ? Math.round(totalSopScore / reviewRuns.length) : 0;
+    const avgSopScore = reviewRuns.length > 0 ? Math.round(totalSopScore / reviewRuns.length) : 0;
 
     // Senior agreement rate with AI: PRs where senior decision matched AI recommendation
     const agreedPrs = await prisma.pullRequest.count({

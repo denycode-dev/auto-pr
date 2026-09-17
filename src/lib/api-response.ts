@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 
-export function apiSuccess<T>(data: T, message = "Operasi berhasil", metaExtra?: Record<string, unknown>, status = 200) {
+export function apiSuccess<T>(
+  data: T,
+  message = "Operasi berhasil",
+  metaExtra?: Record<string, unknown>,
+  status = 200,
+) {
   return NextResponse.json(
     {
       success: true,
@@ -12,16 +17,11 @@ export function apiSuccess<T>(data: T, message = "Operasi berhasil", metaExtra?:
         ...metaExtra,
       },
     },
-    { status }
+    { status },
   );
 }
 
-export function apiError(
-  message: string,
-  code = "INTERNAL_SERVER_ERROR",
-  details: unknown = [],
-  status = 500
-) {
+export function apiError(message: string, code = "INTERNAL_SERVER_ERROR", details: unknown = [], status = 500) {
   return NextResponse.json(
     {
       success: false,
@@ -34,6 +34,6 @@ export function apiError(
         timestamp: new Date().toISOString(),
       },
     },
-    { status }
+    { status },
   );
 }
