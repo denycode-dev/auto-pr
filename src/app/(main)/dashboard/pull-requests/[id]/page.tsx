@@ -20,6 +20,13 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+function normalizeSeniorDecision(decision?: string | null): "APPROVED" | "NEEDS_WORK" | "DECLINED" | "PENDING" {
+  if (decision === "APPROVE") return "APPROVED";
+  if (decision === "DECLINE") return "DECLINED";
+  if (decision === "APPROVED" || decision === "NEEDS_WORK" || decision === "DECLINED") return decision;
+  return "PENDING";
+}
+
 export default async function PullRequestDetailPage({ params }: PageProps) {
   const { id } = await params;
   let pr: PullRequest | null = null;
@@ -66,7 +73,7 @@ export default async function PullRequestDetailPage({ params }: PageProps) {
         prStatus: dbPr.prStatus as any,
         aiReviewStatus: dbPr.aiReviewStatus as any,
         aiRecommendation: (dbPr.aiRecommendation || undefined) as any,
-        seniorDecision: (dbPr.seniorDecision || "PENDING") as any,
+        seniorDecision: normalizeSeniorDecision(dbPr.seniorDecision),
         seniorNotes: dbPr.seniorNotes || undefined,
         decidedAt: dbPr.decidedAt?.toISOString(),
         filesChangedCount: dbPr.filesChangedCount ?? 0,

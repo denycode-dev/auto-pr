@@ -36,7 +36,7 @@ export function ActiveQueuePreview() {
       .finally(() => setLoading(false));
   }, []);
 
-  const pendingPrs = prs.slice(0, 4);
+  const pendingPrs = prs.filter((p) => !p.seniorDecision || p.seniorDecision === "PENDING").slice(0, 4);
 
   return (
     <Card className="shadow-xs border border-border/80">
@@ -49,7 +49,7 @@ export function ActiveQueuePreview() {
         </div>
         <Button variant="ghost" size="sm" asChild className="gap-1 text-xs shrink-0 self-start sm:self-center">
           <Link href="/dashboard/pull-requests">
-            Lihat Semua ({prs.length})
+            Lihat Antrean ({pendingPrs.length})
             <ArrowRight className="size-3.5" />
           </Link>
         </Button>
@@ -78,7 +78,7 @@ export function ActiveQueuePreview() {
               ) : pendingPrs.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-10 text-muted-foreground text-xs">
-                    Tidak ada antrean pull request aktif saat ini.
+                    Tidak ada antrean pull request yang membutuhkan tindakan saat ini.
                   </TableCell>
                 </TableRow>
               ) : (

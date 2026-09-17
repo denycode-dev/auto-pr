@@ -25,11 +25,19 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/in
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { PullRequest, Repository } from "@/data/code-review/types";
+import type { PullRequest, Repository, SeniorDecision } from "@/data/code-review/types";
 
 export interface PrDataTableProps {
   onOpenSyncDialog?: () => void;
   refreshKey?: number;
+}
+
+function normalizeSeniorDecision(decision?: string | null): SeniorDecision {
+  if (!decision) return "PENDING";
+  if (decision === "APPROVE" || decision === "APPROVED") return "APPROVED";
+  if (decision === "DECLINE" || decision === "DECLINED") return "DECLINED";
+  if (decision === "NEEDS_WORK") return "NEEDS_WORK";
+  return "PENDING";
 }
 
 export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTableProps = {}) {
@@ -37,8 +45,8 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
   const [repositories, setRepositories] = React.useState<Repository[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [selectedRepo, setSelectedRepo] = React.useState("PENDING");
-  const [selectedRecommendation, setSelectedRecommendation] = React.useState("PENDING");
+  const [selectedRepo, setSelectedRepo] = React.useState("ALL");
+  const [selectedRecommendation, setSelectedRecommendation] = React.useState("ALL");
   const [activeTab, setActiveTab] = React.useState("PENDING");
 
   const fetchData = React.useCallback(async () => {
@@ -77,27 +85,27 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
   }, []);
 
   React.useEffect(() => {
-    void fetchData();
-  }, [fetchData]);
+    if (refreshKey !== undefined) {
+      void fetchData();
+    }
+  }, [fetchData, refreshKey]);
 
   const filteredPrs = React.useMemo(() => {
     return prs.filter((pr) => {
+      const decision = normalizeSeniorDecision(pr.seniorDecision);
+
       // Tab filter
-      if (activeTab === "PENDING" && pr.seniorDecision !== "PENDING") return false;
-      if (
-        activeTab === "NEEDS_WORK" &&
-        pr.seniorDecision !== "NEEDS_WORK" &&
-        pr.aiRecommendation !== "RECOMMENDED_NEEDS_WORK"
-      )
+      if (activeTab === "PENDING" && decision !== "PENDING") return false;
+      if (activeTab === "NEEDS_WORK" && decision !== "NEEDS_WORK" && pr.aiRecommendation !== "RECOMMENDED_NEEDS_WORK")
         return false;
-      if (activeTab === "APPROVED" && pr.seniorDecision !== "APPROVED") return false;
-      if (activeTab === "DECLINED" && pr.seniorDecision !== "DECLINED") return false;
+      if (activeTab === "APPROVED" && decision !== "APPROVED") return false;
+      if (activeTab === "DECLINED" && decision !== "DECLINED") return false;
 
       // Repo filter
-      if (selectedRepo !== "PENDING" && pr.repositorySlug !== selectedRepo) return false;
+      if (selectedRepo !== "ALL" && pr.repositorySlug !== selectedRepo) return false;
 
       // Recommendation filter
-      if (selectedRecommendation !== "PENDING" && pr.aiRecommendation !== selectedRecommendation) return false;
+      if (selectedRecommendation !== "ALL" && pr.aiRecommendation !== selectedRecommendation) return false;
 
       // Search query
       if (searchQuery.trim()) {
@@ -116,11 +124,13 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
   const counts = React.useMemo(() => {
     return {
       all: prs.length,
-      pending: prs.filter((p) => p.seniorDecision === "PENDING").length,
-      needsWork: prs.filter((p) => p.aiRecommendation === "RECOMMENDED_NEEDS_WORK" || p.seniorDecision === "NEEDS_WORK")
-        .length,
-      approved: prs.filter((p) => p.seniorDecision === "APPROVED").length,
-      declined: prs.filter((p) => p.seniorDecision === "DECLINED").length,
+      pending: prs.filter((p) => normalizeSeniorDecision(p.seniorDecision) === "PENDING").length,
+      needsWork: prs.filter(
+        (p) =>
+          p.aiRecommendation === "RECOMMENDED_NEEDS_WORK" || normalizeSeniorDecision(p.seniorDecision) === "NEEDS_WORK",
+      ).length,
+      approved: prs.filter((p) => normalizeSeniorDecision(p.seniorDecision) === "APPROVED").length,
+      declined: prs.filter((p) => normalizeSeniorDecision(p.seniorDecision) === "DECLINED").length,
     };
   }, [prs]);
 
@@ -151,7 +161,7 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
               <SelectValue placeholder="Semua Repositori" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="PENDING">Semua Repositori</SelectItem>
+              <SelectItem value="ALL">Semua Repositori</SelectItem>
               {repositories.map((repo) => (
                 <SelectItem key={repo.slug} value={repo.slug}>
                   {repo.projectKey} / {repo.slug}
@@ -373,25 +383,30 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
                         </TableCell>
 
                         <TableCell>
-                          {pr.seniorDecision === "APPROVED" && (
-                            <Badge className="bg-emerald-600 text-[11px] text-white">Approved</Badge>
-                          )}
-                          {pr.seniorDecision === "NEEDS_WORK" && (
-                            <Badge className="bg-amber-600 text-[11px] text-white">Needs Work</Badge>
-                          )}
-                          {pr.seniorDecision === "DECLINED" && (
-                            <Badge variant="destructive" className="text-[11px]">
-                              Declined
-                            </Badge>
-                          )}
-                          {pr.seniorDecision === "PENDING" && (
-                            <Badge
-                              variant="outline"
-                              className="border-amber-500/40 text-[11px] text-amber-600 dark:text-amber-400"
-                            >
-                              Menunggu Keputusan
-                            </Badge>
-                          )}
+                          {(() => {
+                            const decision = normalizeSeniorDecision(pr.seniorDecision);
+                            if (decision === "APPROVED") {
+                              return <Badge className="bg-emerald-600 text-[11px] text-white">Approved</Badge>;
+                            }
+                            if (decision === "NEEDS_WORK") {
+                              return <Badge className="bg-amber-600 text-[11px] text-white">Needs Work</Badge>;
+                            }
+                            if (decision === "DECLINED") {
+                              return (
+                                <Badge variant="destructive" className="text-[11px]">
+                                  Declined
+                                </Badge>
+                              );
+                            }
+                            return (
+                              <Badge
+                                variant="outline"
+                                className="border-amber-500/40 text-[11px] text-amber-600 dark:text-amber-400"
+                              >
+                                Menunggu Keputusan
+                              </Badge>
+                            );
+                          })()}
                         </TableCell>
 
                         <TableCell className="text-center font-mono text-xs">

@@ -9,6 +9,12 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
+function normalizeSeniorDecision(decision?: string | null): string {
+  if (decision === "APPROVE") return "APPROVED";
+  if (decision === "DECLINE") return "DECLINED";
+  return decision ?? "PENDING";
+}
+
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
@@ -80,6 +86,8 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     const allIssuesRaw = pr.reviewRuns.flatMap((r) => r.issues);
     const uniqueIssues = deduplicateIssues(allIssuesRaw);
 
+    const normalizedSeniorDecision = normalizeSeniorDecision(pr.seniorDecision);
+
     const responseData = {
       id: pr.id,
       repositoryId: pr.repositoryId,
@@ -115,8 +123,9 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
         totalIssues: uniqueIssues.length,
         scannedAt: latestRun ? latestRun.createdAt.toISOString() : null,
       },
-      seniorDecision: {
-        status: pr.seniorDecision || "PENDING",
+      seniorDecision: normalizedSeniorDecision,
+      seniorDecisionDetails: {
+        status: normalizedSeniorDecision,
         notes: pr.seniorNotes,
         decidedAt: pr.decidedAt?.toISOString() || null,
       },

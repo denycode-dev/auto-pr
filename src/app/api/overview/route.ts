@@ -1,5 +1,3 @@
-import { NextResponse } from "next/server";
-
 import { apiError, apiSuccess } from "@/lib/api-response";
 import prisma from "@/lib/prisma";
 
@@ -21,9 +19,9 @@ export async function GET() {
       prisma.pullRequest.count(),
       prisma.pullRequest.count({ where: { prStatus: "OPEN" } }),
       prisma.pullRequest.count({ where: { aiReviewStatus: "COMPLETED" } }),
-      prisma.pullRequest.count({ where: { seniorDecision: "APPROVED" } }),
+      prisma.pullRequest.count({ where: { seniorDecision: { in: ["APPROVED", "APPROVE"] } } }),
       prisma.pullRequest.count({ where: { seniorDecision: "NEEDS_WORK" } }),
-      prisma.pullRequest.count({ where: { seniorDecision: "DECLINED" } }),
+      prisma.pullRequest.count({ where: { seniorDecision: { in: ["DECLINED", "DECLINE"] } } }),
       prisma.reviewRun.findMany({
         select: {
           criticalCount: true,
@@ -74,9 +72,9 @@ export async function GET() {
     const agreedPrs = await prisma.pullRequest.count({
       where: {
         OR: [
-          { aiRecommendation: "RECOMMENDED_APPROVE", seniorDecision: "APPROVED" },
+          { aiRecommendation: "RECOMMENDED_APPROVE", seniorDecision: { in: ["APPROVED", "APPROVE"] } },
           { aiRecommendation: "RECOMMENDED_NEEDS_WORK", seniorDecision: "NEEDS_WORK" },
-          { aiRecommendation: "RECOMMENDED_DECLINE", seniorDecision: "DECLINED" },
+          { aiRecommendation: "RECOMMENDED_DECLINE", seniorDecision: { in: ["DECLINED", "DECLINE"] } },
         ],
       },
     });

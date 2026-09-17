@@ -13,9 +13,10 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
     const body = await req.json();
-    const { action, notes, publishAiComments } = body; // action: "APPROVE" | "NEEDS_WORK" | "DECLINE" | "PUBLISH_COMMENTS"
+    const { action, notes, publishAiComments } = body; // action: "APPROVE" | "APPROVED" | "NEEDS_WORK" | "DECLINE" | "DECLINED" | "PUBLISH_COMMENTS"
 
-    if (!["APPROVE", "NEEDS_WORK", "DECLINE", "PUBLISH_COMMENTS"].includes(action)) {
+    const allowedActions = ["APPROVE", "APPROVED", "NEEDS_WORK", "DECLINE", "DECLINED", "PUBLISH_COMMENTS"];
+    if (!allowedActions.includes(action)) {
       return apiError(
         "Aksi tidak valid. Pilihan yang diperbolehkan: APPROVE, NEEDS_WORK, DECLINE, PUBLISH_COMMENTS",
         "VALIDATION_ERROR",
@@ -56,8 +57,10 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     let syncResult: { success: boolean; data?: unknown; error?: string };
     let newPrStatus = pr.prStatus;
+    let mappedSeniorDecision: "APPROVED" | "NEEDS_WORK" | "DECLINED";
 
-    if (action === "APPROVE") {
+    if (action === "APPROVE" || action === "APPROVED") {
+      mappedSeniorDecision = "APPROVED";
       syncResult = await bitbucketClient.approvePullRequest(projectKey, repositorySlug, bitbucketPrId);
       if (notes?.trim()) {
         await bitbucketClient.postComment(projectKey, repositorySlug, bitbucketPrId, {
@@ -73,6 +76,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         }
       }
     } else if (action === "NEEDS_WORK") {
+      mappedSeniorDecision = "NEEDS_WORK";
       syncResult = await bitbucketClient.setNeedsWork(projectKey, repositorySlug, bitbucketPrId);
       if (notes?.trim()) {
         await bitbucketClient.postComment(projectKey, repositorySlug, bitbucketPrId, {
@@ -80,7 +84,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         });
       }
     } else {
-      // DECLINE
+      // DECLINE or DECLINED
+      mappedSeniorDecision = "DECLINED";
       syncResult = await bitbucketClient.declinePullRequest(
         projectKey,
         repositorySlug,
@@ -109,7 +114,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       where: { id: pr.id },
       data: {
         prStatus: newPrStatus,
-        seniorDecision: action,
+        seniorDecision: mappedSeniorDecision,
         seniorNotes: notes || null,
         decidedAt,
       },
@@ -119,7 +124,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       {
         pullRequestId: updatedPr.id,
         bitbucketPrId: updatedPr.bitbucketPrId,
-        bitbucketStatus: action,
+        bitbucketStatus: mappedSeniorDecision,
         seniorDecision: updatedPr.seniorDecision,
         decidedAt: decidedAt.toISOString(),
         remoteSync: syncResult,

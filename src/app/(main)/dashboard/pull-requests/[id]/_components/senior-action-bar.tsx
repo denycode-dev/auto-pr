@@ -36,11 +36,27 @@ interface SeniorActionBarProps {
   pr: PullRequest;
 }
 
+function normalizeSeniorDecision(decision?: string | null): SeniorDecision {
+  if (!decision) return "PENDING";
+  if (decision === "APPROVE" || decision === "APPROVED") return "APPROVED";
+  if (decision === "DECLINE" || decision === "DECLINED") return "DECLINED";
+  if (decision === "NEEDS_WORK") return "NEEDS_WORK";
+  return "PENDING";
+}
+
 export function SeniorActionBar({ pr }: SeniorActionBarProps) {
   const router = useRouter();
-  const [currentDecision, setCurrentDecision] = React.useState<SeniorDecision>(pr.seniorDecision);
+  const [currentDecision, setCurrentDecision] = React.useState<SeniorDecision>(
+    normalizeSeniorDecision(pr.seniorDecision),
+  );
   const [decisionNotes, setDecisionNotes] = React.useState<string>(pr.seniorNotes ?? "");
   const [decidedAt, setDecidedAt] = React.useState<string | undefined>(pr.decidedAt);
+
+  React.useEffect(() => {
+    setCurrentDecision(normalizeSeniorDecision(pr.seniorDecision));
+    setDecisionNotes(pr.seniorNotes ?? "");
+    setDecidedAt(pr.decidedAt);
+  }, [pr.seniorDecision, pr.seniorNotes, pr.decidedAt]);
 
   // Modal states
   const [isProgressModalOpen, setIsProgressModalOpen] = React.useState(false);
@@ -73,7 +89,7 @@ export function SeniorActionBar({ pr }: SeniorActionBarProps) {
 
       if (res.ok && data.success) {
         setCurrentDecision("APPROVED");
-        setDecidedAt(new Date().toISOString());
+        setDecidedAt(data.data?.decidedAt || new Date().toISOString());
         setIsApproveOpen(false);
         toast.success("Pull Request Berhasil Disetujui!", {
           description: publishAiCommentsOnApprove
@@ -109,7 +125,7 @@ export function SeniorActionBar({ pr }: SeniorActionBarProps) {
       if (res.ok && data.success) {
         setCurrentDecision("NEEDS_WORK");
         setDecisionNotes(notesInput);
-        setDecidedAt(new Date().toISOString());
+        setDecidedAt(data.data?.decidedAt || new Date().toISOString());
         setIsNeedsWorkOpen(false);
         toast.warning("Status Diubah Menjadi 'Perlu Revisi'", {
           description: `Catatan revisi berhasil disematkan pada PR #${pr.bitbucketPrId} di Bitbucket Server.`,
@@ -143,7 +159,7 @@ export function SeniorActionBar({ pr }: SeniorActionBarProps) {
       if (res.ok && data.success) {
         setCurrentDecision("DECLINED");
         setDecisionNotes(declineReasonInput);
-        setDecidedAt(new Date().toISOString());
+        setDecidedAt(data.data?.decidedAt || new Date().toISOString());
         setIsDeclineOpen(false);
         toast.error("Pull Request Telah Ditolak", {
           description: `PR #${pr.bitbucketPrId} telah ditutup di Bitbucket Server.`,

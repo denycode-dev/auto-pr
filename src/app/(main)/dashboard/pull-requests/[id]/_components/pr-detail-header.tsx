@@ -46,6 +46,25 @@ export function PrDetailHeader({ pr }: PrDetailHeaderProps) {
             <GitPullRequest className="mr-1 size-3 text-primary" />
             PR #{pr.bitbucketPrId}
           </Badge>
+          {pr.seniorDecision === "APPROVED" && (
+            <Badge className="bg-emerald-600 font-medium text-white text-xs">Disetujui</Badge>
+          )}
+          {pr.seniorDecision === "NEEDS_WORK" && (
+            <Badge className="bg-amber-600 font-medium text-white text-xs">Perlu Revisi</Badge>
+          )}
+          {pr.seniorDecision === "DECLINED" && (
+            <Badge variant="destructive" className="font-medium text-xs">
+              Ditolak
+            </Badge>
+          )}
+          {(!pr.seniorDecision || pr.seniorDecision === "PENDING") && (
+            <Badge
+              variant="outline"
+              className="border-amber-500/40 bg-amber-500/10 text-amber-600 text-xs dark:text-amber-400"
+            >
+              Menunggu Keputusan
+            </Badge>
+          )}
           <Badge variant="outline" className="font-mono text-xs">
             {pr.projectKey} / {pr.repositorySlug}
           </Badge>

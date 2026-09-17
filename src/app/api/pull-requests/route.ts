@@ -3,12 +3,19 @@ import type { NextRequest } from "next/server";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import prisma from "@/lib/prisma";
 
+function normalizeSeniorDecision(decision?: string | null): string {
+  if (decision === "APPROVE") return "APPROVED";
+  if (decision === "DECLINE") return "DECLINED";
+  return decision ?? "PENDING";
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status"); // 'OPEN' | 'MERGED' | 'DECLINED'
     const recommendation = searchParams.get("recommendation");
     const projectKey = searchParams.get("projectKey");
+    const decision = searchParams.get("decision");
     const search = searchParams.get("search");
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "20", 10)));
@@ -18,6 +25,15 @@ export async function GET(req: NextRequest) {
 
     if (status && status !== "ALL") {
       whereClause.prStatus = status;
+    }
+    if (decision && decision !== "ALL") {
+      if (decision === "APPROVED") {
+        whereClause.seniorDecision = { in: ["APPROVED", "APPROVE"] };
+      } else if (decision === "DECLINED") {
+        whereClause.seniorDecision = { in: ["DECLINED", "DECLINE"] };
+      } else {
+        whereClause.seniorDecision = decision;
+      }
     }
     if (recommendation && recommendation !== "ALL") {
       whereClause.aiRecommendation = recommendation;
@@ -79,7 +95,7 @@ export async function GET(req: NextRequest) {
         prStatus: pr.prStatus,
         aiReviewStatus: pr.aiReviewStatus,
         aiRecommendation: pr.aiRecommendation,
-        seniorDecision: pr.seniorDecision || "PENDING",
+        seniorDecision: normalizeSeniorDecision(pr.seniorDecision),
         seniorNotes: pr.seniorNotes,
         decidedAt: pr.decidedAt?.toISOString(),
         totalIssues: latestRun ? latestRun.totalIssues : 0,
