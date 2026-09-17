@@ -14,11 +14,9 @@ export interface SopContext {
  */
 export async function buildHybridSopContext(
   localSopContent?: string | null,
-  repositoryId?: string
+  repositoryId?: string,
 ): Promise<SopContext> {
-  const whereConditions: Record<string, unknown>[] = [
-    { isEnabled: true, scope: "GLOBAL" },
-  ];
+  const whereConditions: Record<string, unknown>[] = [{ isEnabled: true, scope: "GLOBAL" }];
 
   if (repositoryId) {
     whereConditions.push({
@@ -47,7 +45,7 @@ export async function buildHybridSopContext(
         (sop, idx) =>
           `### [SOP Global ${idx + 1}] Kategori: ${sop.category.name} | ${sop.title}\n${
             sop.summary ? `*Ringkasan:* ${sop.summary}\n\n` : ""
-          }${sop.rulesMarkdown}`
+          }${sop.rulesMarkdown}`,
       )
       .join("\n\n");
   }
@@ -59,7 +57,7 @@ export async function buildHybridSopContext(
         (sop, idx) =>
           `### [SOP Repositori ${idx + 1}] Kategori: ${sop.category.name} | ${sop.title}\n${
             sop.summary ? `*Ringkasan:* ${sop.summary}\n\n` : ""
-          }${sop.rulesMarkdown}`
+          }${sop.rulesMarkdown}`,
       )
       .join("\n\n");
   }

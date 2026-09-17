@@ -1,4 +1,4 @@
-import type { DiffHunk, DiffLine, ParsedDiffFile, ReviewIssue } from "@/data/code-review/types";
+import type { DiffHunk, ParsedDiffFile, ReviewIssue } from "@/data/code-review/types";
 
 export interface FilteredFileDiff {
   filePath: string;
@@ -31,6 +31,9 @@ const IGNORED_PATH_PATTERNS = [
   /(-lock\.yaml|package-lock\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock|go\.sum|composer\.lock)$/i,
   // Minified files
   /\.(min\.js|min\.css)$/i,
+  // Coverage & Test artifacts
+  /(^|\/)(coverage(\.out|\.txt|\.html)?|\.nyc_output|lcov\.info)$/i,
+  /(^|\/)coverage$/i,
   // Media & Binary Assets
   /\.(png|jpe?g|gif|svg|ico|webp|woff|woff2|ttf|eot|mp4|webm|pdf|zip|tar|gz)$/i,
   // Map files
@@ -83,6 +86,22 @@ export function calculateDiffStats(rawDiff?: string | null): DiffStats {
 }
 
 /**
+ * Normalizes git diff paths by removing surrounding quotes and git prefixes
+ * like 'a/', 'b/', 'src://', 'dst://', 'i/', 'w/' (Bitbucket Server & Git standard)
+ */
+export function cleanGitPath(rawPath: string): string {
+  if (!rawPath || typeof rawPath !== "string") return "";
+  let p = rawPath.trim();
+  // Strip surrounding quotes
+  if ((p.startsWith('"') && p.endsWith('"')) || (p.startsWith("'") && p.endsWith("'"))) {
+    p = p.slice(1, -1).trim();
+  }
+  // Strip Bitbucket Server and git prefixes: dst://, src://, a/, b/, i/, w/, c/
+  p = p.replace(/^(?:dst:\/\/|src:\/\/|[abciw]\/)/i, "");
+  return p.trim();
+}
+
+/**
  * Parse a unified diff into per-file chunks and identify added lines for Bitbucket inline comments
  */
 export function parseAndFilterDiff(rawDiff: string): ParsedDiff {
@@ -101,22 +120,40 @@ export function parseAndFilterDiff(rawDiff: string): ParsedDiff {
   const files: FilteredFileDiff[] = [];
 
   for (const block of rawFileBlocks) {
-    // Extract file path from block header: a/path/to/file b/path/to/file
-    const headerMatch = block.match(/^a\/(.*?)\s+b\/(.*?)(?:\n|$)/m);
+    const lines = block.split("\n");
     let filePath = "";
+    let oldPath = "";
 
-    if (headerMatch) {
-      filePath = headerMatch[2] || headerMatch[1];
-    } else {
-      const fallbackMatch = block.match(/\+\+\+\s+b\/(.*?)(?:\n|$)/m);
-      filePath = fallbackMatch ? fallbackMatch[1] : "unknown-file";
+    for (let i = 0; i < Math.min(lines.length, 25); i++) {
+      const line = lines[i];
+      if (line.startsWith("--- ")) {
+        const raw = line.substring(4).trim();
+        if (raw !== "/dev/null") oldPath = cleanGitPath(raw);
+      } else if (line.startsWith("+++ ")) {
+        const raw = line.substring(4).trim();
+        if (raw !== "/dev/null") filePath = cleanGitPath(raw);
+      }
+    }
+
+    if (!filePath && oldPath) {
+      filePath = oldPath;
+    }
+
+    if (!filePath) {
+      const firstLine = lines[0] || "";
+      const headerTokens = firstLine.match(/(?:(?:src:\/\/|dst:\/\/|[abciw]\/)?(?:"[^"]+"|\S+))/g);
+      if (headerTokens && headerTokens.length >= 2) {
+        filePath = cleanGitPath(headerTokens[1]);
+      } else {
+        const fallbackMatch = block.match(/(?:\+\+\+|---)\s+(\S+)/);
+        filePath = fallbackMatch && fallbackMatch[1] !== "/dev/null" ? cleanGitPath(fallbackMatch[1]) : "unknown-file";
+      }
     }
 
     const { ignore, reason } = shouldIgnoreFile(filePath);
     const addedLines: { lineNumber: number; content: string }[] = [];
 
     if (!ignore) {
-      const lines = block.split("\n");
       let currentToLine = 0;
 
       for (const line of lines) {
@@ -140,10 +177,17 @@ export function parseAndFilterDiff(rawDiff: string): ParsedDiff {
       }
     }
 
+    let finalIgnore = ignore;
+    let finalReason = reason;
+    if (!finalIgnore && addedLines.length === 0) {
+      finalIgnore = true;
+      finalReason = "No added or modified lines in diff";
+    }
+
     files.push({
       filePath,
-      isIgnored: ignore,
-      ignoreReason: reason,
+      isIgnored: finalIgnore,
+      ignoreReason: finalReason,
       diffContent: `diff --git ${block}`,
       addedLines,
     });
@@ -165,12 +209,122 @@ export function parseAndFilterDiff(rawDiff: string): ParsedDiff {
 }
 
 /**
+ * Validates whether a given filePath and lineNumber corresponds to an actual added/modified line in the diff.
+ * Returns false for unchanged context lines or files with no additions.
+ */
+export function isLineInChangedDiff(
+  filePath: string,
+  lineNumber: number,
+  parsedDiff: ParsedDiff,
+  tolerance = 1,
+): boolean {
+  if (!filePath || !lineNumber || !parsedDiff?.files) return false;
+
+  const cleanTarget = cleanGitPath(filePath).toLowerCase();
+  const file = parsedDiff.files.find((f) => {
+    if (f.isIgnored || f.addedLines.length === 0) return false;
+    const cleanF = cleanGitPath(f.filePath).toLowerCase();
+    return cleanF === cleanTarget || cleanTarget.endsWith(cleanF) || cleanF.endsWith(cleanTarget);
+  });
+
+  if (!file) return false;
+
+  return file.addedLines.some((al) => Math.abs(al.lineNumber - lineNumber) <= tolerance);
+}
+
+/**
+ * Checks whether an incoming candidate issue is a duplicate of any issue already recorded.
+ * Considers file path, line proximity (within 3 lines), and category/title semantic overlap.
+ */
+export function isDuplicateIssue(
+  candidate: {
+    filePath: string;
+    lineNumber: number;
+    category: string;
+    title: string;
+  },
+  existingIssues: Array<{
+    filePath: string;
+    lineNumber: number;
+    category: string;
+    title: string;
+  }>,
+): boolean {
+  if (!candidate || !existingIssues || existingIssues.length === 0) return false;
+
+  const cleanCandidatePath = cleanGitPath(candidate.filePath).toLowerCase();
+  const candidateWords = candidate.title
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 3);
+
+  return existingIssues.some((existing) => {
+    const cleanExistingPath = cleanGitPath(existing.filePath).toLowerCase();
+    const isSameFile =
+      cleanCandidatePath === cleanExistingPath ||
+      cleanCandidatePath.endsWith(cleanExistingPath) ||
+      cleanExistingPath.endsWith(cleanCandidatePath);
+
+    if (!isSameFile) return false;
+
+    const lineDiff = Math.abs((candidate.lineNumber || 1) - existing.lineNumber);
+
+    // 1. Same file + exact line number + same category or title keyword match
+    if (lineDiff === 0) {
+      if (candidate.category.toUpperCase() === existing.category.toUpperCase()) {
+        return true;
+      }
+      const existingTitleLower = existing.title.toLowerCase();
+      if (candidateWords.some((w) => existingTitleLower.includes(w))) {
+        return true;
+      }
+    }
+
+    // 2. Same file + nearby line (lineDiff <= 3) + same category AND title keyword overlap
+    if (lineDiff <= 3 && candidate.category.toUpperCase() === existing.category.toUpperCase()) {
+      const existingTitleLower = existing.title.toLowerCase();
+      const matchCount = candidateWords.filter((w) => existingTitleLower.includes(w)).length;
+      if (matchCount >= 1) return true;
+    }
+
+    // 3. Exact normalized title match in the same file (even if line shifted slightly)
+    const normCandTitle = candidate.title.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const normExistTitle = existing.title.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (normCandTitle.length > 5 && normCandTitle === normExistTitle) {
+      return true;
+    }
+
+    return false;
+  });
+}
+
+/**
+ * Deduplicates a list of issues across multiple review runs or reports.
+ */
+export function deduplicateIssues<
+  T extends {
+    filePath: string;
+    lineNumber: number;
+    category: string;
+    title: string;
+  },
+>(issues: T[]): T[] {
+  if (!issues || issues.length === 0) return [];
+  const result: T[] = [];
+  for (const iss of issues) {
+    const isDup = isDuplicateIssue(iss, result);
+    if (!isDup) {
+      result.push(iss);
+    }
+  }
+  return result;
+}
+
+/**
  * Parse unified git diff into rich file, hunk, and line structures for the ergonomic Code Diff Viewer (PRD 6.2)
  */
-export function parseUnifiedDiffForViewer(
-  rawDiff: string,
-  issues: ReviewIssue[] = []
-): ParsedDiffFile[] {
+export function parseUnifiedDiffForViewer(rawDiff: string, issues: ReviewIssue[] = []): ParsedDiffFile[] {
   if (!rawDiff || typeof rawDiff !== "string") {
     return [];
   }
@@ -188,35 +342,48 @@ export function parseUnifiedDiffForViewer(
     let isNewFile = false;
     let isDeletedFile = false;
 
-    for (let i = 0; i < Math.min(lines.length, 10); i++) {
+    for (let i = 0; i < Math.min(lines.length, 25); i++) {
       const line = lines[i];
       if (line.startsWith("new file mode")) {
         isNewFile = true;
       } else if (line.startsWith("deleted file mode")) {
         isDeletedFile = true;
-      } else if (line.startsWith("--- a/")) {
-        oldPath = line.replace("--- a/", "").trim();
-      } else if (line.startsWith("+++ b/")) {
-        filePath = line.replace("+++ b/", "").trim();
+      } else if (line.startsWith("--- ")) {
+        const raw = line.substring(4).trim();
+        if (raw !== "/dev/null") {
+          oldPath = cleanGitPath(raw);
+        }
+      } else if (line.startsWith("+++ ")) {
+        const raw = line.substring(4).trim();
+        if (raw !== "/dev/null") {
+          filePath = cleanGitPath(raw);
+        }
       }
     }
 
+    // For deleted file, target path is /dev/null, so filePath becomes oldPath
+    if (!filePath && oldPath) {
+      filePath = oldPath;
+    }
+
+    // If still not resolved from --- / +++, check header line
     if (!filePath) {
-      const headerMatch = block.match(/^a\/(.*?)\s+b\/(.*?)(?:\n|$)/m);
-      if (headerMatch) {
-        filePath = headerMatch[2] || headerMatch[1];
-        oldPath = headerMatch[1] || "";
+      const firstLine = lines[0] || "";
+      const headerTokens = firstLine.match(/(?:(?:src:\/\/|dst:\/\/|[abciw]\/)?(?:"[^"]+"|\S+))/g);
+      if (headerTokens && headerTokens.length >= 2) {
+        oldPath = cleanGitPath(headerTokens[0]);
+        filePath = cleanGitPath(headerTokens[1]);
       } else {
-        // Use index to ensure uniqueness when path cannot be determined
-        filePath = `unknown-file-${blockIdx}`;
+        const fallbackMatch = block.match(/(?:\+\+\+|---)\s+(\S+)/);
+        if (fallbackMatch && fallbackMatch[1] !== "/dev/null") {
+          filePath = cleanGitPath(fallbackMatch[1]);
+        } else {
+          filePath = `unknown-file-${blockIdx}`;
+        }
       }
     }
 
-    const status: "ADDED" | "MODIFIED" | "DELETED" = isNewFile
-      ? "ADDED"
-      : isDeletedFile
-        ? "DELETED"
-        : "MODIFIED";
+    const status: "ADDED" | "MODIFIED" | "DELETED" = isNewFile ? "ADDED" : isDeletedFile ? "DELETED" : "MODIFIED";
 
     const hunks: DiffHunk[] = [];
     let currentHunk: DiffHunk | null = null;
@@ -279,8 +446,22 @@ export function parseUnifiedDiffForViewer(
         iss.filePath === filePath ||
         (oldPath && iss.filePath === oldPath) ||
         filePath.endsWith(iss.filePath) ||
-        iss.filePath.endsWith(filePath)
+        iss.filePath.endsWith(filePath),
     );
+
+    // Attach inline issues to specific diff lines for anchored review comments
+    for (const hunk of hunks) {
+      for (const line of hunk.lines) {
+        const matched = fileIssues.filter(
+          (iss) =>
+            (line.newLine !== null && line.newLine !== undefined && iss.lineNumber === line.newLine) ||
+            (line.oldLine !== null && line.oldLine !== undefined && iss.lineNumber === line.oldLine),
+        );
+        if (matched.length > 0) {
+          line.inlineIssues = matched;
+        }
+      }
+    }
 
     result.push({
       filePath,
@@ -291,8 +472,56 @@ export function parseUnifiedDiffForViewer(
       totalIssues: fileIssues.length,
       hunks,
       inlineIssues: fileIssues,
+      diffText: formatBitbucketDiffForShiki(block, filePath, oldPath, hunks),
     });
   }
 
   return result;
+}
+
+/**
+ * Normalizes Bitbucket Server diffs into standard Git Unified Diff format for Shiki rendering.
+ * Converts 'src://' and 'dst://' to standard 'a/' and 'b/', ensures clean diff headers,
+ * and reconstructs exact unified diff lines (+ for additions, - for deletions, ' ' for context).
+ */
+export function formatBitbucketDiffForShiki(
+  rawBlock: string,
+  filePath: string,
+  oldPath?: string,
+  hunks?: DiffHunk[],
+): string {
+  const cleanNew = cleanGitPath(filePath);
+  const cleanOld = cleanGitPath(oldPath ?? filePath);
+
+  if (hunks && hunks.length > 0) {
+    const lines: string[] = [`diff --git a/${cleanOld} b/${cleanNew}`, `--- a/${cleanOld}`, `+++ b/${cleanNew}`];
+
+    for (const hunk of hunks) {
+      lines.push(hunk.header);
+      for (const l of hunk.lines) {
+        if (l.type === "ADDED") {
+          lines.push(`+${l.content}`);
+        } else if (l.type === "DELETED") {
+          lines.push(`-${l.content}`);
+        } else {
+          lines.push(` ${l.content}`);
+        }
+      }
+    }
+
+    return lines.join("\n");
+  }
+
+  // Fallback if no hunks parsed
+  let text = rawBlock.replace(/\r\n/g, "\n");
+  text = text.replace(/src:\/\//g, "a/").replace(/dst:\/\//g, "b/");
+
+  if (!text.startsWith("diff --git ")) {
+    text = `diff --git a/${cleanOld} b/${cleanNew}\n` + text.replace(/^(?:a\/\S+|[^\n]+)\s+(?:b\/\S+|[^\n]+)\n?/, "");
+  }
+
+  text = text.replace(/^---\s+(?:src:\/\/|[abciw]\/)?([^\n]+)/m, `--- a/${cleanOld}`);
+  text = text.replace(/^\+\+\+\s+(?:dst:\/\/|[abciw]\/)?([^\n]+)/m, `+++ b/${cleanNew}`);
+
+  return text.trim();
 }

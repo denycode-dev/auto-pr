@@ -47,6 +47,7 @@ export interface ReviewIssue {
   suggestedFix?: string | null;
   bitbucketCommentId?: string | null;
   isPosted: boolean;
+  isFalsePositive?: boolean;
   createdAt?: string;
 }
 
@@ -147,4 +148,5 @@ export interface ParsedDiffFile {
   totalIssues: number;
   hunks: DiffHunk[];
   inlineIssues?: ReviewIssue[];
+  diffText?: string;
 }

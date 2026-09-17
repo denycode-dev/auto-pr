@@ -1,8 +1,18 @@
 import prisma from "@/lib/prisma";
 import { getAiClient } from "@/server/ai/client";
 import { bitbucketClient } from "@/server/bitbucket/client";
-import { calculateDiffStats, parseAndFilterDiff } from "./diff-filter";
+
+import {
+  calculateDiffStats,
+  cleanGitPath,
+  deduplicateIssues,
+  isDuplicateIssue,
+  isLineInChangedDiff,
+  parseAndFilterDiff,
+} from "./diff-filter";
 import { buildHybridSopContext } from "./sop-engine";
+
+export { deduplicateIssues, isDuplicateIssue };
 
 export interface ReviewAiIssueOutput {
   filePath: string;
@@ -49,7 +59,7 @@ export async function executeAiReview(pullRequestInternalId: string, forceRefres
       rawDiff = await bitbucketClient.getPullRequestDiff(
         pr.repository.projectKey,
         pr.repository.slug,
-        pr.bitbucketPrId
+        pr.bitbucketPrId,
       );
 
       if (rawDiff && rawDiff.trim().length > 0) {
@@ -70,24 +80,62 @@ export async function executeAiReview(pullRequestInternalId: string, forceRefres
       throw new Error(`Diff tidak ditemukan atau gagal diambil dari Bitbucket Server untuk PR #${pr.bitbucketPrId}`);
     }
 
-    // 2. Parse & sanitize diff: exclude binary, lockfiles, minified files (BR-05)
-    const parsedDiff = parseAndFilterDiff(rawDiff);
-    const analyzableDiffChunks = parsedDiff.files
-      .filter((f) => !f.isIgnored)
-      .map((f) => f.diffContent)
-      .join("\n\n");
+    // 2. Fetch all previous issues for this PR to prevent duplicates on re-scans
+    const previousRuns = await prisma.reviewRun.findMany({
+      where: { pullRequestId: pr.id },
+      include: {
+        issues: {
+          select: {
+            id: true,
+            filePath: true,
+            lineNumber: true,
+            severity: true,
+            category: true,
+            title: true,
+            description: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
 
-    // 3. Fetch local repo SOP from Bitbucket
+    const existingIssues = previousRuns.flatMap((r) => r.issues);
+
+    // 3. Parse & sanitize diff: exclude binary, lockfiles, minified files, coverage dumps, and files without additions (BR-05)
+    const parsedDiff = parseAndFilterDiff(rawDiff);
+    const analyzableFiles = parsedDiff.files.filter((f) => !f.isIgnored && f.addedLines.length > 0);
+    const analyzableDiffChunks = analyzableFiles.map((f) => f.diffContent).join("\n\n");
+
+    const changedLinesSummary = analyzableFiles
+      .map((f) => {
+        const lineNums = f.addedLines.map((l) => l.lineNumber).sort((a, b) => a - b);
+        const ranges: string[] = [];
+        let start = lineNums[0];
+        let prev = lineNums[0];
+        for (let i = 1; i <= lineNums.length; i++) {
+          if (lineNums[i] === prev + 1) {
+            prev = lineNums[i];
+          } else {
+            ranges.push(start === prev ? `${start}` : `${start}-${prev}`);
+            start = lineNums[i];
+            prev = lineNums[i];
+          }
+        }
+        return `• ${f.filePath}: baris baru [${ranges.join(", ")}]`;
+      })
+      .join("\n");
+
+    // 4. Fetch local repo SOP from Bitbucket
     const localSopContent = await bitbucketClient.getRepoLocalSop(
       pr.repository.projectKey,
       pr.repository.slug,
-      pr.sourceBranch
+      pr.sourceBranch,
     );
 
-    // 4. Build hybrid SOP context (Global + Repository Specific) (BR-10)
+    // 5. Build hybrid SOP context (Global + Repository Specific) (BR-10)
     const sopContext = await buildHybridSopContext(localSopContent, pr.repositoryId);
 
-    // 5. Build prompt and invoke OpenAI SDK Gateway (BR-06)
+    // 6. Build prompt and invoke OpenAI SDK Gateway (BR-06)
     const systemPrompt = `
 Anda adalah Principal Code Reviewer & Security Architect. Tugas Anda adalah mengevaluasi perubahan kode git (diff) secara mendalam, objektif, dan terstruktur.
 
@@ -98,10 +146,26 @@ Fokus evaluasi:
 4. Kepatuhan terhadap Standar SOP Tim:
 ${sopContext.combinedGuidelinesPrompt}
 
+ATURAN SANGAT KETAT CAKUPAN EVALUASI (DIFF-ONLY SCOPING - WAJIB DIPATUHI):
+1. Anda HANYA diperbolehkan menganalisis dan melaporkan isu pada baris kode yang BARU DITAMBAHKAN atau DIUBAH (baris dengan awalan '+' dalam git diff).
+2. DILARANG KERAS mengevaluasi, mengkritik, atau melaporkan isu pada baris kode yang TIDAK BERUBAH (baris konteks yang diawali spasi ' ') ataupun baris yang dihapus ('-').
+3. Nilai 'lineNumber' pada output issues HARUS merupakan nomor baris baru yang nyata-nyata berada pada baris bertanda '+' (lineType: 'ADDED').
+4. Jangan pernah melaporkan isu pada berkas yang tidak memiliki baris penambahan/perubahan kode.
+
+ATURAN GAYA BAHASA & STRUKTUR OUTPUT (WAJIB DIPATUHI):
+- Gunakan Bahasa Indonesia yang mudah dipahami, terstruktur, ringkas, dan to the point.
+- Hindari kata pengantar basa-basi ("Kami melihat bahwa...", "Perlu diperhatikan...").
+- Format deskripsi setiap issue HARUS terstruktur rapi dengan poin berikut:
+  📍 **Lokasi:** sebutkan berkas dan nomor baris secara spesifik.
+  ⚠️ **Masalah:** 1-2 kalimat padat mengenai inti kesalahan logika/keamanan/SOP.
+  ⚡ **Dampak:** risiko teknis nyata (potensi error runtime, celah injeksi, data leak, dsb.).
+  💡 **Solusi:** arahan perbaikan konkret.
+- Berikan contoh perbaikan pada 'suggestedFix' berupa potongan kode bersih dan siap pakai.
+
 ATURAN OUTPUT (STRICT JSON OBJECT):
 Wajib kembalikan format JSON persis sesuai skema berikut:
 {
-  "summary": "Ringkasan temuan keseluruhan dalam markdown yang padat, humanis, dan tanpa jargon teknis gateway/model",
+  "summary": "Ringkasan temuan keseluruhan dalam markdown yang padat, to the point, dan tanpa jargon model AI",
   "recommendedStatus": "RECOMMENDED_APPROVE" | "RECOMMENDED_NEEDS_WORK" | "RECOMMENDED_DECLINE",
   "sopScore": 0-100 (angka integer, 100 jika patuh sempurna, <80 jika ada pelanggaran atau celah keamanan),
   "issues": [
@@ -111,19 +175,39 @@ Wajib kembalikan format JSON persis sesuai skema berikut:
       "lineType": "ADDED",
       "severity": "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO",
       "category": "BUG" | "SECURITY" | "PERFORMANCE" | "SOP_VIOLATION" | "BEST_PRACTICE",
-      "title": "Judul singkat masalah dalam Bahasa Indonesia",
-      "description": "Uraian teknis mengapa baris ini bermasalah dan risiko yang ditimbulkan",
+      "title": "Judul masalah singkat dan spesifik dalam Bahasa Indonesia",
+      "description": "Uraian terstruktur (Masalah, Dampak, Solusi) dalam Bahasa Indonesia",
       "suggestedFix": "Potongan kode perbaikan yang valid (opsional)"
     }
   ]
 }
 `.trim();
 
+    const existingIssuesPromptSection =
+      existingIssues.length > 0
+        ? `
+DAFTAR TEMUAN/ISU YANG SUDAH TERDAFTAR PADA PEMINDAIAN SEBELUMNYA (JANGAN LAPORKAN KEMBALI):
+${existingIssues
+  .slice(0, 30)
+  .map((i) => `- [${i.filePath}:${i.lineNumber}] ${i.title} (${i.category})`)
+  .join("\n")}
+
+INSTRUKSI KHUSUS PEMINDAIAN ULANG:
+Isu-isu di atas SUDAH tercatat dalam laporan sebelumnya. Anda DILARANG melaporkan kembali isu yang sama atau memiliki esensi yang sama dengan daftar di atas.
+HANYA laporkan temuan/isu BARU yang belum ada dalam daftar di atas. Jika tidak ada isu baru yang ditemukan pada baris perubahan kode, kembalikan array "issues": [].
+`.trim()
+        : "";
+
     const userPrompt = `
 Periksa perubahan kode (diff) berikut untuk PR #${pr.bitbucketPrId}: "${pr.title}"
 Repositori: ${pr.repository.projectKey}/${pr.repository.slug}
 Branch: ${pr.sourceBranch} -> ${pr.targetBranch}
 Commit: ${pr.latestCommitHash}
+
+DAFTAR BERKAS & BARIS YANG DITAMBAHKAN/DIUBAH (+):
+${changedLinesSummary || "(Tidak ada baris penambahan kode)"}
+
+${existingIssuesPromptSection}
 
 \`\`\`diff
 ${analyzableDiffChunks || rawDiff}
@@ -146,7 +230,7 @@ ${analyzableDiffChunks || rawDiff}
       {
         timeout: requestTimeout,
         maxRetries: 0,
-      }
+      },
     );
 
     const responseContent = completion.choices[0]?.message?.content || "{}";
@@ -163,65 +247,81 @@ ${analyzableDiffChunks || rawDiff}
       };
     }
 
-    // Calculate severity metrics
-    const issues = Array.isArray(aiResult.issues) ? aiResult.issues : [];
+    const rawIssues = Array.isArray(aiResult.issues) ? aiResult.issues : [];
+
+    // Filter 1: Must be strictly on a changed/added line in the diff (BR-05 & Scoping)
+    const changedDiffIssues = rawIssues.filter((issue) => {
+      const isChanged = isLineInChangedDiff(issue.filePath, issue.lineNumber || 1, parsedDiff);
+      if (!isChanged) {
+        console.log(
+          `[ReviewEngine] Menolak isu pada ${issue.filePath}:${issue.lineNumber} - tidak berada pada baris diff yang ditambahkan/diubah.`,
+        );
+      }
+      return isChanged;
+    });
+
+    // Filter 2: Must not be duplicate of existing issues from previous review runs
+    const finalNewIssues = changedDiffIssues.filter((issue) => {
+      const isDup = isDuplicateIssue(issue, existingIssues);
+      if (isDup) {
+        console.log(
+          `[ReviewEngine] Menolak isu duplikat pada ${issue.filePath}:${issue.lineNumber} (${issue.title}) - sudah tercatat di pemindaian sebelumnya.`,
+        );
+      }
+      return !isDup;
+    });
+
+    // Calculate severity metrics from finalNewIssues
     let criticalCount = 0;
     let highCount = 0;
     let mediumCount = 0;
     let lowCount = 0;
 
-    for (const issue of issues) {
+    for (const issue of finalNewIssues) {
       if (issue.severity === "CRITICAL") criticalCount++;
       else if (issue.severity === "HIGH") highCount++;
       else if (issue.severity === "MEDIUM") mediumCount++;
       else if (issue.severity === "LOW") lowCount++;
     }
 
-    // 6. Save ReviewRun into database
+    // Determine clean summary and status
+    let finalSummary = aiResult.summary || "Analisis AI selesai.";
+    let finalStatus = aiResult.recommendedStatus;
+    let finalSopScore = typeof aiResult.sopScore === "number" ? Math.min(100, Math.max(0, aiResult.sopScore)) : 85;
+
+    if (existingIssues.length > 0 && finalNewIssues.length === 0) {
+      finalSummary =
+        "Pemindaian AI ulang selesai: Tidak ditemukan isu baru pada baris kode yang diubah (diff). Seluruh temuan sebelumnya telah tercatat atau kode perubahan memenuhi standar SOP.";
+      finalStatus = "RECOMMENDED_APPROVE";
+      finalSopScore = 100;
+    } else if (finalNewIssues.length === 0 && rawIssues.length > 0) {
+      finalSummary = "Analisis AI selesai: Tidak ada temuan isu baru pada baris kode yang diubah (diff).";
+      finalStatus = "RECOMMENDED_APPROVE";
+      finalSopScore = 100;
+    }
+
+    // 7. Save ReviewRun into database
     const reviewRun = await prisma.reviewRun.create({
       data: {
         pullRequestId: pr.id,
         commitHash: pr.latestCommitHash,
-        summaryMarkdown: aiResult.summary || "Analisis AI selesai.",
-        totalIssues: issues.length,
+        summaryMarkdown: finalSummary,
+        totalIssues: finalNewIssues.length,
         criticalCount,
         highCount,
         mediumCount,
         lowCount,
-        sopScore: typeof aiResult.sopScore === "number" ? Math.min(100, Math.max(0, aiResult.sopScore)) : 85,
-        rawLlmResponse: aiResult as unknown as object,
+        sopScore: finalSopScore,
+        rawLlmResponse: {
+          ...aiResult,
+          issues: finalNewIssues,
+          filteredOutCount: rawIssues.length - finalNewIssues.length,
+        } as unknown as object,
       },
     });
 
-    // 7. Post inline comments to Bitbucket Server with Throttling (PRD 9.1: 80ms delay)
-    for (const issue of issues) {
-      const commentText = `### [AI Review] ${issue.severity === "CRITICAL" ? "🚨" : issue.severity === "HIGH" ? "⚠️" : "💡"} **${issue.title}** (${issue.category})\n\n${issue.description}${
-        issue.suggestedFix ? `\n\n\`\`\`typescript\n// Rekomendasi perbaikan:\n${issue.suggestedFix}\n\`\`\`` : ""
-      }`;
-
-      let bbComment: { id: number; text: string } | null = null;
-
-      try {
-        bbComment = await bitbucketClient.postComment(
-          pr.repository.projectKey,
-          pr.repository.slug,
-          pr.bitbucketPrId,
-          {
-            text: commentText,
-            anchor: {
-              diffType: "EFFECTIVE",
-              line: issue.lineNumber || 1,
-              lineType: "ADDED",
-              fileType: "TO",
-              path: issue.filePath,
-              srcPath: issue.filePath,
-            },
-          }
-        );
-      } catch (postErr) {
-        console.warn(`[ReviewEngine] Gagal memposting inline comment untuk ${issue.filePath}:${issue.lineNumber}:`, postErr);
-      }
-
+    // 8. Save ONLY finalNewIssues into database as draft
+    for (const issue of finalNewIssues) {
       await prisma.reviewIssue.create({
         data: {
           reviewRunId: reviewRun.id,
@@ -233,37 +333,10 @@ ${analyzableDiffChunks || rawDiff}
           title: issue.title,
           description: issue.description,
           suggestedFix: issue.suggestedFix || null,
-          bitbucketCommentId: bbComment?.id ? BigInt(bbComment.id) : null,
-          isPosted: Boolean(bbComment?.id),
+          bitbucketCommentId: null,
+          isPosted: false,
         },
       });
-
-      // Throttle delay 80ms between API calls to protect enterprise Bitbucket Server (PRD 9.1)
-      await new Promise((resolve) => setTimeout(resolve, 80));
-    }
-
-    // 8. Post general summary comment to Bitbucket PR
-    try {
-      const summaryComment = `## 🤖 Hasil Evaluasi Kualitas Kode — Iterasi \`${pr.latestCommitHash.substring(0, 8)}\`
-**Rekomendasi:** \`${aiResult.recommendedStatus}\` | **Skor Kepatuhan SOP:** \`${reviewRun.sopScore}%\`
-
-### Ringkasan Temuan:
-- 🚨 **Kritis:** ${criticalCount}
-- 🔴 **Tinggi:** ${highCount}
-- 🟡 **Sedang:** ${mediumCount}
-- 🟢 **Rendah / Saran:** ${lowCount}
-
-${aiResult.summary}
-`;
-
-      await bitbucketClient.postComment(
-        pr.repository.projectKey,
-        pr.repository.slug,
-        pr.bitbucketPrId,
-        { text: summaryComment }
-      );
-    } catch (summaryErr) {
-      console.warn("[ReviewEngine] Gagal memposting komentar ringkasan ke Bitbucket:", summaryErr);
     }
 
     // 9. Update PullRequest status in DB
@@ -271,7 +344,7 @@ ${aiResult.summary}
       where: { id: pr.id },
       data: {
         aiReviewStatus: "COMPLETED",
-        aiRecommendation: aiResult.recommendedStatus,
+        aiRecommendation: finalStatus,
       },
     });
 
@@ -286,4 +359,136 @@ ${aiResult.summary}
 
     throw err;
   }
+}
+
+/**
+ * Publish approved AI review issues and summary to Bitbucket Server (Requires User Approval)
+ */
+export async function publishAiReviewToBitbucket(
+  pullRequestId: string,
+  targetIssueIds?: string[],
+): Promise<{
+  success: boolean;
+  publishedCount: number;
+  totalIssues: number;
+}> {
+  const pr = await prisma.pullRequest.findUnique({
+    where: { id: pullRequestId },
+    include: {
+      repository: true,
+      reviewRuns: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        include: { issues: true },
+      },
+    },
+  });
+
+  if (!pr || !pr.reviewRuns[0]) {
+    throw new Error(`PullRequest atau ReviewRun untuk ID '${pullRequestId}' tidak ditemukan`);
+  }
+
+  const latestRun = pr.reviewRuns[0];
+  // Filter issues that are NOT marked as false positive
+  let issuesToPost = latestRun.issues.filter((iss) => !iss.isFalsePositive);
+
+  // If specific issueIds are passed, restrict to only those (allowing re-post)
+  if (targetIssueIds && targetIssueIds.length > 0) {
+    const targetSet = new Set(targetIssueIds);
+    issuesToPost = issuesToPost.filter((iss) => targetSet.has(iss.id));
+  } else {
+    // If bulk general publish, only post unposted issues
+    issuesToPost = issuesToPost.filter((iss) => !iss.isPosted);
+  }
+
+  let publishedCount = 0;
+
+  // 1. Post unposted inline comments with 80ms throttle
+  for (const issue of issuesToPost) {
+    const ext = issue.filePath.split(".").pop() || "typescript";
+    const severityEmoji =
+      issue.severity === "CRITICAL"
+        ? "🚨"
+        : issue.severity === "HIGH"
+          ? "⚠️"
+          : issue.severity === "MEDIUM"
+            ? "🟡"
+            : issue.severity === "LOW"
+              ? "🔵"
+              : "ℹ️";
+
+    const commentText = `### [AI Review] ${severityEmoji} **${issue.title}** (\`${issue.severity}\` | \`${issue.category}\`)
+
+📍 **Lokasi:** \`${issue.filePath}:${issue.lineNumber}\`
+
+${issue.description}${
+  issue.suggestedFix ? `\n\n\`\`\`${ext}\n// Rekomendasi perbaikan:\n${issue.suggestedFix}\n\`\`\`` : ""
+}`;
+
+    try {
+      const bbComment = await bitbucketClient.postComment(
+        pr.repository.projectKey,
+        pr.repository.slug,
+        pr.bitbucketPrId,
+        {
+          text: commentText,
+          anchor: {
+            diffType: "EFFECTIVE",
+            line: issue.lineNumber || 1,
+            lineType: "ADDED",
+            fileType: "TO",
+            path: issue.filePath,
+            srcPath: issue.filePath,
+          },
+        },
+      );
+
+      if (bbComment?.id) {
+        await prisma.reviewIssue.update({
+          where: { id: issue.id },
+          data: {
+            bitbucketCommentId: BigInt(bbComment.id),
+            isPosted: true,
+          },
+        });
+        publishedCount++;
+      }
+    } catch (postErr) {
+      console.warn(
+        `[ReviewEngine] Gagal memposting inline comment untuk ${issue.filePath}:${issue.lineNumber}:`,
+        postErr,
+      );
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 80));
+  }
+
+  // 2. Post general summary comment to Bitbucket PR if general publish or first time
+  if ((!targetIssueIds || targetIssueIds.length === 0) && publishedCount > 0) {
+    try {
+      const summaryComment = `## 🤖 Hasil Evaluasi Kualitas Kode — Disetujui Senior Reviewer
+**Rekomendasi AI:** \`${pr.aiRecommendation || "NEEDS_WORK"}\` | **Skor Kepatuhan SOP:** \`${latestRun.sopScore}%\`
+
+### Ringkasan Temuan:
+- 🚨 **Kritis:** ${latestRun.criticalCount}
+- 🔴 **Tinggi:** ${latestRun.highCount}
+- 🟡 **Sedang:** ${latestRun.mediumCount}
+- 🔵 **Rendah:** ${latestRun.lowCount}
+
+${latestRun.summaryMarkdown}
+`;
+
+      await bitbucketClient.postComment(pr.repository.projectKey, pr.repository.slug, pr.bitbucketPrId, {
+        text: summaryComment,
+      });
+    } catch (summaryErr) {
+      console.warn("[ReviewEngine] Gagal memposting komentar ringkasan ke Bitbucket:", summaryErr);
+    }
+  }
+
+  return {
+    success: true,
+    publishedCount,
+    totalIssues: latestRun.issues.length,
+  };
 }
