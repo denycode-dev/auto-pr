@@ -1,4 +1,4 @@
-# Qodeer Review
+# Denycode Code Review
 
 **Automated AI Code Review & Senior Decision System for Bitbucket Server 8.19**
 
@@ -8,7 +8,7 @@
 
 ## Overview
 
-Qodeer Review integrates with Bitbucket Server 8.19 via REST API to automate code review for engineering teams. When a pull request is ready, engineers trigger AI review on-demand. The AI analyzes the diff against your organization's **Coding SOPs** (Standard Operating Procedures), produces a structured report with inline issue annotations, and provides a merge recommendation. Senior engineers then make the final approval decision.
+Denycode Code Review integrates with Bitbucket Server 8.19 via REST API to automate code review for engineering teams. When a pull request is ready, engineers trigger AI review on-demand. The AI analyzes the diff against your organization's **Coding SOPs** (Standard Operating Procedures), produces a structured report with inline issue annotations, and provides a merge recommendation. Senior engineers then make the final approval decision.
 
 ```
 Bitbucket Server 8.19
@@ -16,7 +16,7 @@ Bitbucket Server 8.19
        │  REST API (sync-prs)
        ▼
 ┌─────────────────────┐
-│   Qodeer Review     │  ← Next.js 16 + Prisma + PostgreSQL
+│   Denycode Code Review     │  ← Next.js 16 + Prisma + PostgreSQL
 │                     │
 │  PR Queue           │  List & sync open PRs
 │  Code Diff Viewer   │  Side-by-side diff with inline AI findings
@@ -35,6 +35,7 @@ Bitbucket Server 8.19
 ## Features
 
 ### Core Review Workflow
+
 - **On-demand AI review** — trigger per PR, no auto-run (BR-02)
 - **Unified diff viewer** — side-by-side file tree with hunk-level, line-by-line rendering
 - **Inline AI findings** — CRITICAL / HIGH / MEDIUM / LOW / INFO issues annotated directly on diff lines
@@ -43,6 +44,7 @@ Bitbucket Server 8.19
 - **Bitbucket comment sync** — AI findings posted as inline comments back to Bitbucket Server
 
 ### SOP Management (Dual-Scope Architecture)
+
 - **Global SOPs** — organization-wide rules applied to every repository
 - **Repository SOPs** — rules scoped to a specific `projectKey/slug`
 - **SOP Categories** — color-coded categories (Security, Performance, Style, etc.)
@@ -51,6 +53,7 @@ Bitbucket Server 8.19
 - **Enable / Disable toggle** — activate/deactivate individual rules without deleting
 
 ### Infrastructure
+
 - **REST API only** — all Bitbucket integration via polling, zero webhooks (BR-01)
 - **Diff caching** — raw diff stored in DB, avoids re-fetching on every page load
 - **80ms throttle** — comment posting to Bitbucket to prevent socket exhaustion
@@ -60,17 +63,17 @@ Bitbucket Server 8.19
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| **Framework** | Next.js 16 (App Router), React 19 |
-| **Language** | TypeScript 5 (strict mode) |
-| **Styling** | Tailwind CSS v4, shadcn/ui (radix-nova) |
-| **Database** | PostgreSQL via Prisma ORM |
-| **AI Client** | OpenAI SDK v7 |
-| **Bitbucket** | Bitbucket Server 8.19 REST API v1 |
-| **Linting/Format** | Biome |
-| **State (UI)** | Zustand, React Hook Form |
-| **Tables** | TanStack Table v9 |
+| Layer              | Technology                              |
+| ------------------ | --------------------------------------- |
+| **Framework**      | Next.js 16 (App Router), React 19       |
+| **Language**       | TypeScript 5 (strict mode)              |
+| **Styling**        | Tailwind CSS v4, shadcn/ui (radix-nova) |
+| **Database**       | PostgreSQL via Prisma ORM               |
+| **AI Client**      | OpenAI SDK v7                           |
+| **Bitbucket**      | Bitbucket Server 8.19 REST API v1       |
+| **Linting/Format** | Biome                                   |
+| **State (UI)**     | Zustand, React Hook Form                |
+| **Tables**         | TanStack Table v9                       |
 
 ---
 
@@ -117,15 +120,15 @@ src/
 
 ## Database Schema
 
-| Model | Purpose |
-|---|---|
-| `Repository` | Registered Bitbucket repos (`projectKey` + `slug`) |
-| `PullRequest` | Synced PRs with cached diff and AI review status |
-| `ReviewRun` | Immutable record of each AI analysis run |
-| `ReviewIssue` | Individual finding from a review run (file, line, severity) |
-| `SopCategory` | Grouping for SOP rules (name, slug, color badge) |
-| `CodingSop` | SOP rule with `GLOBAL` or `REPOSITORY` scope |
-| `SystemSetting` | Key-value store for Bitbucket URL, token, AI model, etc. |
+| Model           | Purpose                                                     |
+| --------------- | ----------------------------------------------------------- |
+| `Repository`    | Registered Bitbucket repos (`projectKey` + `slug`)          |
+| `PullRequest`   | Synced PRs with cached diff and AI review status            |
+| `ReviewRun`     | Immutable record of each AI analysis run                    |
+| `ReviewIssue`   | Individual finding from a review run (file, line, severity) |
+| `SopCategory`   | Grouping for SOP rules (name, slug, color badge)            |
+| `CodingSop`     | SOP rule with `GLOBAL` or `REPOSITORY` scope                |
+| `SystemSetting` | Key-value store for Bitbucket URL, token, AI model, etc.    |
 
 ### AI Review Status Flow
 
@@ -221,29 +224,34 @@ App runs at [http://localhost:3000](http://localhost:3000)
 ## API Reference
 
 ### Sync Pull Requests
+
 ```
 POST /api/bitbucket/sync-prs
 Body: { repositoryId: string }
 ```
 
 ### Trigger AI Review
+
 ```
 POST /api/pull-requests/:id/trigger-review
 ```
 
 ### Get Diff (parsed)
+
 ```
 GET /api/pull-requests/:id/diff
 Response: { data: { files: ParsedDiffFile[] }, stats: DiffStats }
 ```
 
 ### Senior Decision
+
 ```
 POST /api/pull-requests/:id/action
 Body: { decision: "APPROVED" | "NEEDS_WORK" | "DECLINED", notes?: string }
 ```
 
 ### SOPs
+
 ```
 GET    /api/sops                        # List all SOPs
 POST   /api/sops                        # Create SOP
@@ -284,6 +292,7 @@ npm run check:fix
 ```
 
 **Conventions:**
+
 - Double quotes, semicolons, 2-space indentation, 120-character line width
 - Sorted imports
 - TypeScript strict mode — `any` is avoided
