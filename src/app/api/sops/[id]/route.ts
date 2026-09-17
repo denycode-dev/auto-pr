@@ -1,6 +1,7 @@
-import { NextRequest } from "next/server";
-import prisma from "@/lib/prisma";
+import type { NextRequest } from "next/server";
+
 import { apiError, apiSuccess } from "@/lib/api-response";
+import prisma from "@/lib/prisma";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         createdAt: sop.createdAt.toISOString(),
         updatedAt: sop.updatedAt.toISOString(),
       },
-      "Detail SOP berhasil diambil"
+      "Detail SOP berhasil diambil",
     );
   } catch (error) {
     console.error("[API GET /sops/:id error]:", error);
@@ -65,7 +66,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
 
     const finalScope = scope !== undefined ? (scope === "REPOSITORY" ? "REPOSITORY" : "GLOBAL") : existing.scope;
-    const finalRepoId = finalScope === "REPOSITORY" ? (repositoryId !== undefined ? repositoryId : existing.repositoryId) : null;
+    const finalRepoId =
+      finalScope === "REPOSITORY" ? (repositoryId !== undefined ? repositoryId : existing.repositoryId) : null;
 
     const updated = await prisma.codingSop.update({
       where: { id },
@@ -100,7 +102,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         createdAt: updated.createdAt.toISOString(),
         updatedAt: updated.updatedAt.toISOString(),
       },
-      "Coding SOP berhasil diperbarui"
+      "Coding SOP berhasil diperbarui",
     );
   } catch (error) {
     console.error("[API PUT /sops/:id error]:", error);

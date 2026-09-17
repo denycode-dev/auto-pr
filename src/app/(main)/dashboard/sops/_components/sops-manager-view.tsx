@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
+
 import { toast } from "sonner";
 
-import type { CodingSop, SopCategory } from "@/data/code-review/types";
+import type { CodingSop, Repository, SopCategory } from "@/data/code-review/types";
+
 import { LocalSopGuide } from "./local-sop-guide";
 import { SopCategoryDialog } from "./sop-category-dialog";
 import { SopImportDialog } from "./sop-import-dialog";
@@ -13,14 +15,18 @@ import { SopsList } from "./sops-list";
 export function SopsManagerView() {
   const [sops, setSops] = React.useState<CodingSop[]>([]);
   const [categories, setCategories] = React.useState<SopCategory[]>([]);
+  const [repositories, setRepositories] = React.useState<Repository[]>([]);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = React.useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = React.useState(false);
 
   const fetchCategories = React.useCallback(async () => {
     try {
       const res = await fetch("/api/sops/categories");
-      const json = await res.json();
-      if (res.ok && json.success && Array.isArray(json.data)) {
+      if (!res.ok) return;
+      const text = await res.text();
+      if (!text.trim()) return;
+      const json = JSON.parse(text);
+      if (json.success && Array.isArray(json.data)) {
         setCategories(json.data);
       }
     } catch (err) {
@@ -28,16 +34,36 @@ export function SopsManagerView() {
     }
   }, []);
 
+  const fetchRepositories = React.useCallback(async () => {
+    try {
+      const res = await fetch("/api/repositories");
+      if (!res.ok) return;
+      const text = await res.text();
+      if (!text.trim()) return;
+      const json = JSON.parse(text);
+      if (json.success && Array.isArray(json.data)) {
+        setRepositories(json.data);
+      }
+    } catch (err) {
+      console.error("Gagal mengambil data repositori:", err);
+    }
+  }, []);
+
   const fetchSops = React.useCallback(async () => {
     try {
       const res = await fetch("/api/sops");
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
-          setSops(json.data);
-        } else {
-          setSops([]);
-        }
+      if (!res.ok) {
+        setSops([]);
+        return;
+      }
+      const text = await res.text();
+      if (!text.trim()) {
+        setSops([]);
+        return;
+      }
+      const json = JSON.parse(text);
+      if (json.success && Array.isArray(json.data)) {
+        setSops(json.data);
       } else {
         setSops([]);
       }
@@ -48,9 +74,10 @@ export function SopsManagerView() {
   }, []);
 
   React.useEffect(() => {
-    fetchSops();
-    fetchCategories();
-  }, [fetchSops, fetchCategories]);
+    void fetchSops();
+    void fetchCategories();
+    void fetchRepositories();
+  }, [fetchSops, fetchCategories, fetchRepositories]);
 
   const handleToggleEnabled = async (id: string, enabled: boolean) => {
     try {
@@ -61,9 +88,7 @@ export function SopsManagerView() {
       });
       if (res.ok) {
         setSops((prev) =>
-          prev.map((s) =>
-            s.id === id ? { ...s, isEnabled: enabled, updatedAt: new Date().toISOString() } : s
-          )
+          prev.map((s) => (s.id === id ? { ...s, isEnabled: enabled, updatedAt: new Date().toISOString() } : s)),
         );
         toast.success(`SOP ${enabled ? "diaktifkan" : "dinonaktifkan"}`);
       } else {
@@ -83,12 +108,13 @@ export function SopsManagerView() {
       const res = await fetch(`/api/sops/${id}`, {
         method: "DELETE",
       });
-      const data = await res.json();
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
 
       if (res.ok && data.success) {
         toast.success(`SOP "${title}" berhasil dihapus.`);
         setSops((prev) => prev.filter((s) => s.id !== id));
-        fetchCategories(); // update counts
+        void fetchCategories(); // update counts
       } else {
         toast.error(data.message || "Gagal menghapus SOP.");
       }
@@ -110,6 +136,7 @@ export function SopsManagerView() {
           <SopsList
             sops={sops}
             categories={categories}
+            repositories={repositories}
             onToggleEnabled={handleToggleEnabled}
             onDeleteSop={handleDeleteSop}
           />
@@ -125,8 +152,8 @@ export function SopsManagerView() {
         open={isCategoryDialogOpen}
         onOpenChange={setIsCategoryDialogOpen}
         onCategoriesUpdated={() => {
-          fetchCategories();
-          fetchSops();
+          void fetchCategories();
+          void fetchSops();
         }}
       />
 
@@ -135,8 +162,8 @@ export function SopsManagerView() {
         open={isImportDialogOpen}
         onOpenChange={setIsImportDialogOpen}
         onImportSuccess={() => {
-          fetchSops();
-          fetchCategories();
+          void fetchSops();
+          void fetchCategories();
         }}
       />
     </div>

@@ -1,6 +1,7 @@
-import { NextRequest } from "next/server";
-import prisma from "@/lib/prisma";
+import type { NextRequest } from "next/server";
+
 import { apiError, apiSuccess } from "@/lib/api-response";
+import prisma from "@/lib/prisma";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -72,7 +73,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
         `Kategori '${existing.name}' tidak dapat dihapus karena masih digunakan oleh ${existing._count.sops} aturan SOP. Pindahkan atau hapus SOP tersebut terlebih dahulu.`,
         "RESTRICTED_DELETE",
         [],
-        400
+        400,
       );
     }
 

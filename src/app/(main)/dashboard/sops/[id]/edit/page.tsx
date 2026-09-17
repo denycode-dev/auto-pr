@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
-import prisma from "@/lib/prisma";
+
 import type { CodingSop } from "@/data/code-review/types";
+import prisma from "@/lib/prisma";
+
 import { SopDualPaneEditor } from "../../_components/sop-dual-pane-editor";
 
 interface EditSopPageProps {
@@ -8,7 +10,7 @@ interface EditSopPageProps {
 }
 
 export const metadata = {
-  title: "Edit Coding SOP | Qodeer Review",
+  title: "Edit Coding SOP | Denycode Code Review",
   description: "Perbarui aturan Coding SOP dan standar kepatuhan kode",
 };
 

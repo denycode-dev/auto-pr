@@ -1,6 +1,7 @@
-import { NextRequest } from "next/server";
-import prisma from "@/lib/prisma";
+import type { NextRequest } from "next/server";
+
 import { apiError, apiSuccess } from "@/lib/api-response";
+import prisma from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
   try {
@@ -81,12 +82,7 @@ export async function POST(req: NextRequest) {
     const { title, categoryId, scope, repositoryId, summary, rulesMarkdown, isEnabled, createdBy } = body;
 
     if (!title || !categoryId || !rulesMarkdown) {
-      return apiError(
-        "Field 'title', 'categoryId', dan 'rulesMarkdown' wajib diisi",
-        "VALIDATION_ERROR",
-        [],
-        400
-      );
+      return apiError("Field 'title', 'categoryId', dan 'rulesMarkdown' wajib diisi", "VALIDATION_ERROR", [], 400);
     }
 
     // Verify category exists
@@ -136,7 +132,7 @@ export async function POST(req: NextRequest) {
       },
       "Aturan SOP berhasil disimpan",
       undefined,
-      201
+      201,
     );
   } catch (error) {
     console.error("[API POST /sops error]:", error);

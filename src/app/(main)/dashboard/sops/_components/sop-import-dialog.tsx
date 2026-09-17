@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+
 import {
   ArrowRight,
   CheckCircle2,
@@ -18,22 +19,10 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { Repository, SopCategory } from "@/data/code-review/types";
 
@@ -43,11 +32,7 @@ interface SopImportDialogProps {
   onImportSuccess?: () => void;
 }
 
-export function SopImportDialog({
-  open,
-  onOpenChange,
-  onImportSuccess,
-}: SopImportDialogProps) {
+export function SopImportDialog({ open, onOpenChange, onImportSuccess }: SopImportDialogProps) {
   const [isDragging, setIsDragging] = React.useState(false);
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
   const [categories, setCategories] = React.useState<SopCategory[]>([]);
@@ -75,9 +60,13 @@ export function SopImportDialog({
       setRulesMarkdown("");
 
       fetch("/api/sops/categories")
-        .then((r) => r.json())
+        .then(async (r) => {
+          if (!r.ok) return null;
+          const text = await r.text();
+          return text.trim() ? JSON.parse(text) : null;
+        })
         .then((res) => {
-          if (res.success && Array.isArray(res.data)) {
+          if (res?.success && Array.isArray(res.data)) {
             setCategories(res.data);
             if (res.data.length > 0) setCategoryId(res.data[0].id);
           }
@@ -85,9 +74,13 @@ export function SopImportDialog({
         .catch(console.error);
 
       fetch("/api/repositories")
-        .then((r) => r.json())
+        .then(async (r) => {
+          if (!r.ok) return null;
+          const text = await r.text();
+          return text.trim() ? JSON.parse(text) : null;
+        })
         .then((res) => {
-          if (res.success && Array.isArray(res.data)) {
+          if (res?.success && Array.isArray(res.data)) {
             setRepositories(res.data);
           }
         })
@@ -201,7 +194,8 @@ export function SopImportDialog({
           createdBy: "Senior Lead (Import)",
         }),
       });
-      const data = await res.json();
+      const text = await res.text();
+      const data = text.trim() ? JSON.parse(text) : {};
 
       if (res.ok && data.success) {
         toast.success(`SOP "${title}" berhasil diimpor ke database!`);
@@ -227,9 +221,7 @@ export function SopImportDialog({
               <UploadCloud className="size-4" />
             </div>
             <div>
-              <DialogTitle className="text-base font-semibold">
-                Import Panduan Coding SOP (.md)
-              </DialogTitle>
+              <DialogTitle className="text-base font-semibold">Import Panduan Coding SOP (.md)</DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
                 Unggah berkas Markdown panduan aturan kode tim untuk diintegrasikan ke sistem AI review.
               </DialogDescription>
@@ -251,18 +243,11 @@ export function SopImportDialog({
               }`}
             >
               <FileUp className="size-10 text-primary/70 mb-2" />
-              <span className="text-xs font-semibold text-foreground">
-                Tarik &amp; Lepaskan Berkas .md ke Sini
-              </span>
+              <span className="text-xs font-semibold text-foreground">Tarik &amp; Lepaskan Berkas .md ke Sini</span>
               <span className="text-[11px] text-muted-foreground mt-0.5">
                 atau klik untuk memilih file dari komputer Anda (.md, .markdown)
               </span>
-              <input
-                type="file"
-                accept=".md,.markdown"
-                onChange={handleFileInputChange}
-                className="hidden"
-              />
+              <input type="file" accept=".md,.markdown" onChange={handleFileInputChange} className="hidden" />
             </label>
           ) : (
             <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3 text-xs">
@@ -325,7 +310,20 @@ export function SopImportDialog({
                           <div className="flex items-center gap-2">
                             <span
                               className="size-2 rounded-full"
-                              style={{ backgroundColor: ({ indigo: "#6366f1", emerald: "#10b981", amber: "#f59e0b", rose: "#f43f5e", sky: "#0ea5e9", purple: "#a855f7", slate: "#64748b" } as Record<string, string>)[cat.colorBadge || "indigo"] || "#6366f1" }}
+                              style={{
+                                backgroundColor:
+                                  (
+                                    {
+                                      indigo: "#6366f1",
+                                      emerald: "#10b981",
+                                      amber: "#f59e0b",
+                                      rose: "#f43f5e",
+                                      sky: "#0ea5e9",
+                                      purple: "#a855f7",
+                                      slate: "#64748b",
+                                    } as Record<string, string>
+                                  )[cat.colorBadge || "indigo"] || "#6366f1",
+                              }}
                             />
                             <span>{cat.name}</span>
                           </div>
@@ -343,9 +341,7 @@ export function SopImportDialog({
                       type="button"
                       onClick={() => setScope("GLOBAL")}
                       className={`flex-1 py-1 rounded flex items-center justify-center gap-1.5 font-medium transition-all ${
-                        scope === "GLOBAL"
-                          ? "bg-background text-foreground shadow-xs"
-                          : "text-muted-foreground"
+                        scope === "GLOBAL" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"
                       }`}
                     >
                       <Globe className="size-3" />
@@ -355,9 +351,7 @@ export function SopImportDialog({
                       type="button"
                       onClick={() => setScope("REPOSITORY")}
                       className={`flex-1 py-1 rounded flex items-center justify-center gap-1.5 font-medium transition-all ${
-                        scope === "REPOSITORY"
-                          ? "bg-background text-foreground shadow-xs"
-                          : "text-muted-foreground"
+                        scope === "REPOSITORY" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"
                       }`}
                     >
                       <HardDrive className="size-3" />
@@ -413,13 +407,7 @@ export function SopImportDialog({
           )}
 
           <div className="flex items-center justify-end gap-2 pt-2 border-t">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-              className="text-xs"
-            >
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-xs">
               Batal
             </Button>
             <Button

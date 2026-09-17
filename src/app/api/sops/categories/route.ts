@@ -1,6 +1,7 @@
-import { NextRequest } from "next/server";
-import prisma from "@/lib/prisma";
+import type { NextRequest } from "next/server";
+
 import { apiError, apiSuccess } from "@/lib/api-response";
+import prisma from "@/lib/prisma";
 
 export async function GET() {
   try {
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
       },
       "Kategori SOP berhasil dibuat",
       undefined,
-      201
+      201,
     );
   } catch (error) {
     console.error("[API POST /sops/categories error]:", error);

@@ -1,7 +1,7 @@
 import { SopDualPaneEditor } from "../_components/sop-dual-pane-editor";
 
 export const metadata = {
-  title: "Tulis Coding SOP Baru | Qodeer Review",
+  title: "Tulis Coding SOP Baru",
   description: "Editor panduan standar kualitas kode dan kepatuhan tim",
 };
 

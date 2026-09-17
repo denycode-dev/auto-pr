@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+
 import {
   ArrowLeft,
   Bold,
@@ -31,13 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { CodingSop, Repository, SopCategory } from "@/data/code-review/types";
 
@@ -53,15 +49,15 @@ export function SopDualPaneEditor({ initialSop, mode }: SopDualPaneEditorProps) 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Form State
-  const [title, setTitle] = React.useState(initialSop?.title || "");
-  const [categoryId, setCategoryId] = React.useState(initialSop?.categoryId || "");
+  const [title, setTitle] = React.useState(initialSop?.title ?? "");
+  const [categoryId, setCategoryId] = React.useState(initialSop?.categoryId ?? "");
   const [scope, setScope] = React.useState<"GLOBAL" | "REPOSITORY">(
-    initialSop?.scope === "REPOSITORY" ? "REPOSITORY" : "GLOBAL"
+    initialSop?.scope === "REPOSITORY" ? "REPOSITORY" : "GLOBAL",
   );
-  const [repositoryId, setRepositoryId] = React.useState(initialSop?.repositoryId || "");
-  const [summary, setSummary] = React.useState(initialSop?.summary || "");
+  const [repositoryId, setRepositoryId] = React.useState(initialSop?.repositoryId ?? "");
+  const [summary, setSummary] = React.useState(initialSop?.summary ?? "");
   const [rulesMarkdown, setRulesMarkdown] = React.useState(
-    initialSop?.rulesMarkdown ||
+    initialSop?.rulesMarkdown ??
       `# Aturan Kualitas & Kepatuhan Kode
 
 Jelaskan ringkasan standar kode dan panduan yang wajib dipatuhi oleh developer.
@@ -78,16 +74,20 @@ export async function fetchUserData(userId: string): Promise<User> {
   return await db.user.findUnique({ where: { id: userId } });
 }
 \`\`\`
-`
+`,
   );
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   React.useEffect(() => {
     fetch("/api/sops/categories")
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) return null;
+        const text = await r.text();
+        return text.trim() ? JSON.parse(text) : null;
+      })
       .then((res) => {
-        if (res.success && Array.isArray(res.data)) {
+        if (res?.success && Array.isArray(res.data)) {
           setCategories(res.data);
           if (!categoryId && res.data.length > 0) {
             setCategoryId(res.data[0].id);
@@ -97,9 +97,13 @@ export async function fetchUserData(userId: string): Promise<User> {
       .catch(console.error);
 
     fetch("/api/repositories")
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) return null;
+        const text = await r.text();
+        return text.trim() ? JSON.parse(text) : null;
+      })
       .then((res) => {
-        if (res.success && Array.isArray(res.data)) {
+        if (res?.success && Array.isArray(res.data)) {
           setRepositories(res.data);
         }
       })
@@ -115,19 +119,13 @@ export async function fetchUserData(userId: string): Promise<User> {
     const selected = textarea.value.substring(start, end);
     const replacement = before + (selected || "teks") + after;
 
-    const newContent =
-      textarea.value.substring(0, start) +
-      replacement +
-      textarea.value.substring(end);
+    const newContent = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
 
     setRulesMarkdown(newContent);
 
     setTimeout(() => {
       textarea.focus();
-      textarea.setSelectionRange(
-        start + before.length,
-        start + before.length + (selected ? selected.length : 4)
-      );
+      textarea.setSelectionRange(start + before.length, start + before.length + (selected ? selected.length : 4));
     }, 0);
   };
 
@@ -165,14 +163,11 @@ export async function fetchUserData(userId: string): Promise<User> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
+      const text = await res.text();
+      const data = text.trim() ? JSON.parse(text) : {};
 
       if (res.ok && data.success) {
-        toast.success(
-          mode === "edit"
-            ? "Coding SOP berhasil diperbarui!"
-            : "Coding SOP baru berhasil dibuat!"
-        );
+        toast.success(mode === "edit" ? "Coding SOP berhasil diperbarui!" : "Coding SOP baru berhasil dibuat!");
         router.push("/dashboard/sops");
         router.refresh();
       } else {
@@ -205,7 +200,7 @@ export async function fetchUserData(userId: string): Promise<User> {
               className="my-3 rounded-lg bg-zinc-950 p-3 font-mono text-xs text-emerald-400 overflow-x-auto border border-zinc-800"
             >
               {codeBlockContent.join("\n")}
-            </pre>
+            </pre>,
           );
           codeBlockContent = [];
           inCodeBlock = false;
@@ -226,19 +221,19 @@ export async function fetchUserData(userId: string): Promise<User> {
         elements.push(
           <h1 key={idx} className="text-xl font-bold tracking-tight text-foreground mt-4 mb-2">
             {trimmed.replace(/^#\s+/, "")}
-          </h1>
+          </h1>,
         );
       } else if (trimmed.startsWith("## ")) {
         elements.push(
           <h2 key={idx} className="text-base font-semibold text-foreground mt-4 mb-1.5 border-b pb-1">
             {trimmed.replace(/^##\s+/, "")}
-          </h2>
+          </h2>,
         );
       } else if (trimmed.startsWith("### ")) {
         elements.push(
           <h3 key={idx} className="text-sm font-semibold text-foreground mt-3 mb-1">
             {trimmed.replace(/^###\s+/, "")}
-          </h3>
+          </h3>,
         );
       } else if (trimmed.startsWith("> ")) {
         elements.push(
@@ -247,19 +242,19 @@ export async function fetchUserData(userId: string): Promise<User> {
             className="my-2 border-l-4 border-primary/40 bg-muted/30 px-3 py-1.5 italic text-muted-foreground text-xs rounded-r"
           >
             {trimmed.replace(/^>\s+/, "")}
-          </blockquote>
+          </blockquote>,
         );
       } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
         elements.push(
           <li key={idx} className="ml-4 list-disc text-xs text-foreground/90 my-0.5">
             {trimmed.replace(/^[-*]\s+/, "")}
-          </li>
+          </li>,
         );
       } else if (/^\d+\.\s/.test(trimmed)) {
         elements.push(
           <li key={idx} className="ml-4 list-decimal text-xs text-foreground/90 my-0.5">
             {trimmed.replace(/^\d+\.\s+/, "")}
-          </li>
+          </li>,
         );
       } else if (trimmed === "---" || trimmed === "***") {
         elements.push(<hr key={idx} className="my-3 border-border" />);
@@ -267,7 +262,7 @@ export async function fetchUserData(userId: string): Promise<User> {
         elements.push(
           <p key={idx} className="text-xs text-foreground/85 leading-relaxed my-1.5">
             {trimmed}
-          </p>
+          </p>,
         );
       }
     });
@@ -280,7 +275,12 @@ export async function fetchUserData(userId: string): Promise<User> {
       {/* Top Header Navigation Bar */}
       <div className="flex items-center justify-between border-b pb-3">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" asChild className="gap-1.5 text-xs -ml-2 text-muted-foreground hover:text-foreground">
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="gap-1.5 text-xs -ml-2 text-muted-foreground hover:text-foreground"
+          >
             <Link href="/dashboard/sops">
               <ArrowLeft className="size-3.5" />
               Kembali ke Daftar SOP
@@ -339,7 +339,20 @@ export async function fetchUserData(userId: string): Promise<User> {
                     <div className="flex items-center gap-2">
                       <span
                         className="size-2 rounded-full"
-                        style={{ backgroundColor: ({ indigo: "#6366f1", emerald: "#10b981", amber: "#f59e0b", rose: "#f43f5e", sky: "#0ea5e9", purple: "#a855f7", slate: "#64748b" } as Record<string, string>)[cat.colorBadge || "indigo"] || "#6366f1" }}
+                        style={{
+                          backgroundColor:
+                            (
+                              {
+                                indigo: "#6366f1",
+                                emerald: "#10b981",
+                                amber: "#f59e0b",
+                                rose: "#f43f5e",
+                                sky: "#0ea5e9",
+                                purple: "#a855f7",
+                                slate: "#64748b",
+                              } as Record<string, string>
+                            )[cat.colorBadge || "indigo"] || "#6366f1",
+                        }}
                       />
                       <span>{cat.name}</span>
                     </div>
@@ -359,9 +372,7 @@ export async function fetchUserData(userId: string): Promise<User> {
                 type="button"
                 onClick={() => setScope("GLOBAL")}
                 className={`flex-1 py-1 rounded flex items-center justify-center gap-1.5 font-medium transition-all ${
-                  scope === "GLOBAL"
-                    ? "bg-background text-foreground shadow-xs"
-                    : "text-muted-foreground"
+                  scope === "GLOBAL" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"
                 }`}
               >
                 <Globe className="size-3" />
@@ -371,9 +382,7 @@ export async function fetchUserData(userId: string): Promise<User> {
                 type="button"
                 onClick={() => setScope("REPOSITORY")}
                 className={`flex-1 py-1 rounded flex items-center justify-center gap-1.5 font-medium transition-all ${
-                  scope === "REPOSITORY"
-                    ? "bg-background text-foreground shadow-xs"
-                    : "text-muted-foreground"
+                  scope === "REPOSITORY" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"
                 }`}
               >
                 <HardDrive className="size-3" />
@@ -537,10 +546,7 @@ export async function fetchUserData(userId: string): Promise<User> {
                 {scope === "GLOBAL" ? "Cakupan Global" : "Khusus Repositori"}
               </Badge>
               {selectedCategory && (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] px-1.5 py-0 gap-1"
-                >
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1">
                   <span
                     className="size-1.5 rounded-full"
                     style={{ backgroundColor: selectedCategory.color || "#6366f1" }}
@@ -556,11 +562,7 @@ export async function fetchUserData(userId: string): Promise<User> {
             {title && (
               <div className="border-b pb-3 mb-3">
                 <h2 className="text-lg font-bold text-foreground">{title}</h2>
-                {summary && (
-                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                    {summary}
-                  </p>
-                )}
+                {summary && <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{summary}</p>}
               </div>
             )}
 
