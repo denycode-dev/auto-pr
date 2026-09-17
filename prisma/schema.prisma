@@ -87,6 +87,7 @@ model ReviewIssue {
   suggestedFix       String?   @map("suggested_fix") @db.Text
   bitbucketCommentId BigInt?   @map("bitbucket_comment_id")
   isPosted           Boolean   @default(false) @map("is_posted")
+  isFalsePositive    Boolean   @default(false) @map("is_false_positive")
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
   reviewRun          ReviewRun @relation(fields: [reviewRunId], references: [id], onDelete: Cascade)
 
