@@ -36,11 +36,15 @@ export function SettingsView() {
 
   // Multi-provider AI state
   const [aiProviders, setAiProviders] = React.useState<AiProvider[]>([]);
-  const [testingProviderId, setTestingProviderId] = React.useState<string | null>(null);
+  const [testingProviderId, setTestingProviderId] = React.useState<
+    string | null
+  >(null);
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = React.useState(false);
-  const [providerToEdit, setProviderToEdit] = React.useState<AiProvider | null>(null);
+  const [providerToEdit, setProviderToEdit] = React.useState<AiProvider | null>(
+    null,
+  );
 
   // Load all settings on mount
   const loadSettings = React.useCallback(async () => {
@@ -98,7 +102,10 @@ export function SettingsView() {
     } else {
       if (provider.isDefault || aiProviders.length === 0) {
         provider.isDefault = true;
-        nextList = [...aiProviders.map((p) => ({ ...p, isDefault: false })), provider];
+        nextList = [
+          ...aiProviders.map((p) => ({ ...p, isDefault: false })),
+          provider,
+        ];
       } else {
         nextList = [...aiProviders, provider];
       }
@@ -113,9 +120,14 @@ export function SettingsView() {
     const data = await res.json();
     if (res.ok && data.success) {
       setAiProviders(nextList);
-      toast.success(exists ? "Provider Berhasil Diperbarui" : "Provider AI Baru Ditambahkan", {
-        description: `Konfigurasi '${provider.name}' disimpan ke database.`,
-      });
+      toast.success(
+        exists
+          ? "Provider Berhasil Diperbarui"
+          : "Provider AI Baru Ditambahkan",
+        {
+          description: `Konfigurasi '${provider.name}' disimpan ke database.`,
+        },
+      );
     } else {
       throw new Error(data.message || "Gagal menyimpan ke database.");
     }
@@ -139,7 +151,8 @@ export function SettingsView() {
         setAiProviders(nextList);
         const target = nextList.find((p) => p.id === providerId);
         toast.success(`'${target?.name}' Dijadikan Provider Utama`, {
-          description: "Provider ini akan dipilih secara default saat memindai kode.",
+          description:
+            "Provider ini akan dipilih secara default saat memindai kode.",
         });
       } else {
         toast.error(data.message || "Gagal mengubah provider default.");
@@ -152,7 +165,9 @@ export function SettingsView() {
   // Delete provider
   const handleDeleteProvider = async (providerId: string) => {
     if (aiProviders.length <= 1) {
-      toast.error("Tidak dapat menghapus. Sistem membutuhkan minimal 1 provider aktif.");
+      toast.error(
+        "Tidak dapat menghapus. Sistem membutuhkan minimal 1 provider aktif.",
+      );
       return;
     }
 
@@ -185,7 +200,8 @@ export function SettingsView() {
   // Test provider connection
   const handleTestConnection = async (provider: AiProvider) => {
     setTestingProviderId(provider.id);
-    const testModel = provider.defaultModel ?? provider.models[0] ?? "deepseek-flash";
+    const testModel =
+      provider.defaultModel ?? provider.models[0] ?? "deepseek-flash";
 
     try {
       const res = await fetch("/api/settings", {
@@ -202,11 +218,16 @@ export function SettingsView() {
       const data = await res.json();
       if (res.ok && data.success && data.data?.status === "OK") {
         toast.success(`Koneksi '${provider.name}' Berhasil!`, {
-          description: data.data?.message || `Endpoint merespons dengan model '${testModel}'.`,
+          description:
+            data.data?.message ||
+            `Endpoint merespons dengan model '${testModel}'.`,
         });
       } else {
         toast.error(`Koneksi '${provider.name}' Gagal`, {
-          description: data.data?.message || data.message || "Endpoint tidak dapat dihubungi.",
+          description:
+            data.data?.message ||
+            data.message ||
+            "Endpoint tidak dapat dihubungi.",
         });
       }
     } catch {
@@ -225,13 +246,20 @@ export function SettingsView() {
       />
 
       {/* Tabs Navigation for Minimal Distraction & Low Cognitive Load */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="space-y-4"
+      >
         <TabsList className="grid h-9 w-full max-w-md grid-cols-3 text-xs">
           <TabsTrigger value="ai" className="gap-1.5 font-medium text-xs">
             <Bot className="size-3.5" />
             Provider AI
           </TabsTrigger>
-          <TabsTrigger value="bitbucket" className="gap-1.5 font-medium text-xs">
+          <TabsTrigger
+            value="bitbucket"
+            className="gap-1.5 font-medium text-xs"
+          >
             <Server className="size-3.5" />
             Bitbucket Server
           </TabsTrigger>

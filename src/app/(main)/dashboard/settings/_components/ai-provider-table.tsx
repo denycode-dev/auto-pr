@@ -63,8 +63,31 @@ export function AiProviderTable({
           </Button>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <Table>
+        <>
+          <div className="flex flex-col gap-3 border-b bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <Bot className="size-4 text-primary" />
+                <h3 className="font-semibold text-base text-foreground">Daftar Provider AI</h3>
+                <Badge variant="secondary" className="font-mono text-xs">
+                  {sortedProviders.length}
+                </Badge>
+              </div>
+              <p className="text-muted-foreground text-xs">
+                Kelola penyedia LLM eksternal (OpenAI, DeepSeek, Ollama, vLLM) untuk pemindaian dan evaluasi kode.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={onAddClick}
+              className="h-8 shrink-0 gap-1.5 self-start font-semibold text-xs shadow-xs sm:self-center"
+            >
+              <Plus className="size-3.5" />
+              Tambah Provider AI
+            </Button>
+          </div>
+          <div className="overflow-x-auto">
+            <Table>
             <TableHeader>
               <TableRow className="text-xs hover:bg-transparent">
                 <TableHead className="w-[200px] text-left">Nama Provider</TableHead>
@@ -231,6 +254,7 @@ export function AiProviderTable({
             </TableBody>
           </Table>
         </div>
+        </>
       )}
     </div>
   );
