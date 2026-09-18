@@ -45,7 +45,7 @@ export async function getAiClient(options?: GetAiClientOptions): Promise<{
 // Fallback singleton for sync imports
 export const aiClient = new OpenAI({
   baseURL: process.env.OPENAI_BASE_URL || "https://organization.api-github.com/v1",
-  apiKey: process.env.QODEER_API_KEY || "",
+  apiKey: process.env.QODEER_API_KEY || process.env.OPENAI_API_KEY || "placeholder-build-key",
   timeout: defaultAiTimeout,
   maxRetries: 0,
 });
