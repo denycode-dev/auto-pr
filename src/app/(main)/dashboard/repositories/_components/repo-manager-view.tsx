@@ -68,15 +68,11 @@ export function RepoManagerView() {
   return (
     <div className="flex flex-col gap-6">
       <RepoHeader onConnectNew={() => setIsConnectOpen(true)} />
-      <div className="space-y-6">
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-foreground">Repositori Terpantau ({repositories.length})</h2>
-            <span className="text-xs text-muted-foreground font-mono">Auto-Review Filter Aktif (BR-02)</span>
-          </div>
-          <RepoGrid repositories={repositories} onToggleActive={handleToggleActive} />
-        </div>
-      </div>{" "}
+      <RepoGrid
+        repositories={repositories}
+        onToggleActive={handleToggleActive}
+        onConnectNew={() => setIsConnectOpen(true)}
+      />
       <ConnectRepoDialog open={isConnectOpen} onOpenChange={setIsConnectOpen} onAddRepo={handleAddRepo} />
     </div>
   );

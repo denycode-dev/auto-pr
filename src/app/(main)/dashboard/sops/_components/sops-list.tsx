@@ -6,26 +6,32 @@ import Link from "next/link";
 
 import {
   BookOpen,
-  ChevronDown,
-  ChevronRight,
   Edit2,
   Eye,
   FileText,
-  FolderGit2,
   Globe,
   HardDrive,
+  MoreHorizontal,
   RotateCcw,
   Search,
   Trash2,
 } from "lucide-react";
 
+import { DashboardEmptyState } from "@/app/(main)/dashboard/_components/dashboard-empty-state";
+import { dashboardTableStyles } from "@/app/(main)/dashboard/_components/dashboard-table-styles";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { CodingSop, Repository, SopCategory } from "@/data/code-review/types";
 
 import { SopViewDialog } from "./sop-view-dialog";
@@ -52,149 +58,19 @@ interface SopsListProps {
   onDeleteSop: (id: string, title: string) => void;
 }
 
-interface SopCardItemProps {
-  sop: CodingSop;
-  onView: (sop: CodingSop) => void;
-  onToggleEnabled: (id: string, enabled: boolean) => void;
-  onDeleteSop: (id: string, title: string) => void;
-  showRepoBadge?: boolean;
-}
-
-function SopCardItem({ sop, onView, onToggleEnabled, onDeleteSop, showRepoBadge = false }: SopCardItemProps) {
-  const isRepoScope = sop.scope === "REPOSITORY";
-  let repoName = "Khusus Repositori";
-  if (sop.projectKey && sop.repositorySlug) {
-    repoName = `${sop.projectKey}/${sop.repositorySlug}`;
-  } else if (sop.repository) {
-    repoName = `${sop.repository.projectKey}/${sop.repository.slug}`;
-  }
-
-  const categoryName =
-    typeof sop.category === "string" ? sop.category : (sop.category?.name ?? sop.categoryName ?? "Umum");
-
-  return (
-    <Card className="shadow-2xs overflow-hidden border bg-card hover:border-border/90 transition-all">
-      <CardHeader className="p-3.5 pb-2.5 bg-muted/20 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
-        <div className="flex items-center gap-2 min-w-0 flex-wrap">
-          <FileText className="size-4 text-primary shrink-0" />
-          <h4>
-            <button
-              type="button"
-              onClick={() => onView(sop)}
-              className="font-semibold text-sm text-foreground hover:text-primary transition-colors cursor-pointer text-left"
-            >
-              {sop.title}
-            </button>
-          </h4>
-
-          {/* Scope badge */}
-          {showRepoBadge &&
-            (isRepoScope ? (
-              <Badge variant="outline" className="text-[10px] font-mono gap-1 border-primary/30 text-primary">
-                <HardDrive className="size-2.5" />
-                {repoName}
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="text-[10px] font-mono gap-1 text-muted-foreground">
-                <Globe className="size-2.5" />
-                Global
-              </Badge>
-            ))}
-
-          {/* Category badge */}
-          {typeof sop.category === "object" && sop.category !== null ? (
-            <Badge variant="outline" className="text-[10px] font-medium gap-1">
-              <span
-                className="size-1.5 rounded-full"
-                style={{ backgroundColor: getBadgeColor(sop.category.colorBadge) }}
-              />
-              {sop.category.name}
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="text-[10px] font-medium gap-1">
-              <span className="size-1.5 rounded-full" style={{ backgroundColor: getBadgeColor(undefined) }} />
-              {categoryName}
-            </Badge>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onView(sop)}
-            className="h-7 px-2.5 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10"
-          >
-            <Eye className="size-3.5" />
-            Lihat SOP
-          </Button>
-
-          <div className="flex items-center gap-1.5 text-xs border-l pl-2">
-            <span className="text-muted-foreground text-[11px]">{sop.isEnabled ? "Aktif" : "Nonaktif"}</span>
-            <Switch
-              checked={sop.isEnabled}
-              onCheckedChange={(checked) => {
-                onToggleEnabled(sop.id, checked);
-              }}
-            />
-          </div>
-
-          <div className="flex items-center gap-1 border-l pl-2">
-            <Button variant="ghost" size="icon-sm" asChild className="size-7" title="Edit SOP">
-              <Link href={`/dashboard/sops/${sop.id}/edit`}>
-                <Edit2 className="size-3" />
-              </Link>
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => onDeleteSop(sop.id, sop.title)}
-              className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-              title="Hapus SOP"
-            >
-              <Trash2 className="size-3" />
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-
-      <CardContent className="p-3.5 space-y-2.5">
-        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
-          {sop.summary ?? "Aturan kepatuhan coding standar untuk menjaga kualitas dan arsitektur kode."}
-        </p>
-
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-2 border-t border-border/40">
-          <span>
-            Dibuat oleh: <strong className="text-foreground">{sop.createdBy}</strong>
-          </span>
-          <span>
-            Terakhir diperbarui:{" "}
-            {new Date(sop.updatedAt).toLocaleDateString("id-ID", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })}
-          </span>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 export function SopsList({ sops, categories, repositories = [], onToggleEnabled, onDeleteSop }: SopsListProps) {
+  const [viewingSop, setViewingSop] = React.useState<CodingSop | null>(null);
+
+  // Filter & Search states
   const [search, setSearch] = React.useState("");
   const [scopeFilter, setScopeFilter] = React.useState<"ALL" | "GLOBAL" | "REPOSITORY">("ALL");
   const [statusFilter, setStatusFilter] = React.useState<"ALL" | "ENABLED" | "DISABLED">("ALL");
-  const [categoryFilter, setCategoryFilter] = React.useState("ALL");
-  const [repoFilter, setRepoFilter] = React.useState("ALL");
+  const [categoryFilter, setCategoryFilter] = React.useState<string>("ALL");
+  const [repoFilter, setRepoFilter] = React.useState<string>("ALL");
   const [sortBy, setSortBy] = React.useState<"UPDATED_DESC" | "UPDATED_ASC" | "TITLE_ASC" | "TITLE_DESC">(
     "UPDATED_DESC",
   );
-  const [viewingSop, setViewingSop] = React.useState<CodingSop | null>(null);
-  const [collapsedGroups, setCollapsedGroups] = React.useState<Record<string, boolean>>({});
 
-  // Reset filters helper
   const handleResetFilters = () => {
     setSearch("");
     setScopeFilter("ALL");
@@ -208,7 +84,6 @@ export function SopsList({ sops, categories, repositories = [], onToggleEnabled,
   const availableRepoOptions = React.useMemo(() => {
     const repoMap = new Map<string, { id: string; label: string }>();
 
-    // From repositories props
     repositories.forEach((r) => {
       repoMap.set(r.id, {
         id: r.id,
@@ -216,7 +91,6 @@ export function SopsList({ sops, categories, repositories = [], onToggleEnabled,
       });
     });
 
-    // Also from sops if any repo isn't in repositories prop
     sops.forEach((s) => {
       if (s.scope === "REPOSITORY") {
         const id = s.repositoryId || (s.projectKey && s.repositorySlug ? `${s.projectKey}/${s.repositorySlug}` : "");
@@ -271,10 +145,10 @@ export function SopsList({ sops, categories, repositories = [], onToggleEnabled,
           const q = search.toLowerCase();
           return (
             sop.title.toLowerCase().includes(q) ||
-            (sop.summary && sop.summary.toLowerCase().includes(q)) ||
-            (sop.rulesMarkdown && sop.rulesMarkdown.toLowerCase().includes(q)) ||
-            (sop.repositorySlug && sop.repositorySlug.toLowerCase().includes(q)) ||
-            (sop.projectKey && sop.projectKey.toLowerCase().includes(q))
+            sop.summary?.toLowerCase().includes(q) ||
+            sop.rulesMarkdown?.toLowerCase().includes(q) ||
+            sop.repositorySlug?.toLowerCase().includes(q) ||
+            sop.projectKey?.toLowerCase().includes(q)
           );
         }
 
@@ -297,144 +171,36 @@ export function SopsList({ sops, categories, repositories = [], onToggleEnabled,
       });
   }, [sops, scopeFilter, statusFilter, categoryFilter, repoFilter, search, sortBy]);
 
-  // Separate into Global SOPs and Repository Groups
-  const { globalSops, repoGroups, totalRepoSopsCount } = React.useMemo(() => {
-    const globals: CodingSop[] = [];
-    const groupMap = new Map<
-      string,
-      {
-        key: string;
-        projectKey: string;
-        slug: string;
-        name: string;
-        sops: CodingSop[];
-      }
-    >();
-
-    filteredSops.forEach((sop) => {
-      if (sop.scope === "REPOSITORY") {
-        const repoInfo = sop.repository || repositories.find((r) => r.id === sop.repositoryId);
-        const projectKey = sop.projectKey || repoInfo?.projectKey || "REPO";
-        const slug = sop.repositorySlug || repoInfo?.slug || "general";
-        const key = sop.repositoryId || `${projectKey}/${slug}`;
-        const name = repoInfo?.name || `${projectKey} / ${slug}`;
-
-        const existing = groupMap.get(key);
-        if (existing) {
-          existing.sops.push(sop);
-        } else {
-          groupMap.set(key, {
-            key,
-            projectKey,
-            slug,
-            name,
-            sops: [sop],
-          });
-        }
-      } else {
-        globals.push(sop);
-      }
-    });
-
-    const groups = Array.from(groupMap.values()).sort((a, b) =>
-      `${a.projectKey}/${a.slug}`.localeCompare(`${b.projectKey}/${b.slug}`),
-    );
-
-    const repoCount = groups.reduce((acc, g) => acc + g.sops.length, 0);
-
-    return {
-      globalSops: globals,
-      repoGroups: groups,
-      totalRepoSopsCount: repoCount,
-    };
-  }, [filteredSops, repositories]);
-
-  const toggleGroupCollapse = (key: string) => {
-    setCollapsedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const collapseAll = () => {
-    const updated: Record<string, boolean> = {};
-    repoGroups.forEach((g) => {
-      updated[g.key] = true;
-    });
-    setCollapsedGroups(updated);
-  };
-
-  const expandAll = () => {
-    setCollapsedGroups({});
-  };
-
-  const totalGlobalAll = sops.filter((s) => (s.scope || "GLOBAL") === "GLOBAL").length;
-  const totalRepoAll = sops.filter((s) => s.scope === "REPOSITORY").length;
+  const _totalGlobalAll = sops.filter((s) => (s.scope || "GLOBAL") === "GLOBAL").length;
+  const _totalRepoAll = sops.filter((s) => s.scope === "REPOSITORY").length;
+  const hasActiveFilters = Boolean(
+    search || categoryFilter !== "ALL" || statusFilter !== "ALL" || repoFilter !== "ALL" || scopeFilter !== "ALL",
+  );
 
   return (
-    <div className="space-y-5">
-      {/* Scope Filter Tabs & Search & Filters Panel */}
-      <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <Tabs
-            value={scopeFilter}
-            onValueChange={(val) => setScopeFilter(val as "ALL" | "GLOBAL" | "REPOSITORY")}
-            className="w-full sm:w-auto"
-          >
-            <TabsList className="h-8 p-1 text-xs bg-muted/60">
-              <TabsTrigger value="ALL" className="text-xs px-3">
-                Semua ({sops.length})
-              </TabsTrigger>
-              <TabsTrigger value="GLOBAL" className="text-xs px-3 gap-1.5">
-                <Globe className="size-3 text-muted-foreground" />
-                Global ({totalGlobalAll})
-              </TabsTrigger>
-              <TabsTrigger value="REPOSITORY" className="text-xs px-3 gap-1.5">
-                <HardDrive className="size-3 text-muted-foreground" />
-                Per Repositori ({totalRepoAll})
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+    <div className="space-y-4">
+      {/* Filters Toolbar */}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+          <div className="flex flex-1 flex-wrap items-center gap-2.5">
+            {/* Search Input */}
+            <div className="w-full sm:w-64 lg:w-72">
+              <InputGroup className="w-full">
+                <InputGroupAddon>
+                  <Search className="size-3.5" />
+                </InputGroupAddon>
+                <InputGroupInput
+                  placeholder="Cari judul, kata kunci SOP..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </InputGroup>
+            </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-center">
-            <span className="text-xs text-muted-foreground font-mono">{filteredSops.length} aturan ditemukan</span>
-            {(search ||
-              categoryFilter !== "ALL" ||
-              statusFilter !== "ALL" ||
-              repoFilter !== "ALL" ||
-              scopeFilter !== "ALL") && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleResetFilters}
-                className="h-7 px-2 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
-                title="Reset semua filter"
-              >
-                <RotateCcw className="size-3" />
-                Reset
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Filter controls row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 pt-3 border-t">
-          {/* Search input */}
-          <div className={`sm:col-span-2 ${scopeFilter === "GLOBAL" ? "lg:col-span-6" : "lg:col-span-4"}`}>
-            <InputGroup className="w-full">
-              <InputGroupAddon>
-                <Search className="size-3.5" />
-              </InputGroupAddon>
-              <InputGroupInput
-                placeholder="Cari judul, kata kunci, ringkasan SOP..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="text-xs h-8"
-              />
-            </InputGroup>
-          </div>
-
-          {/* Category Select */}
-          <div className="lg:col-span-2">
+            {/* Category Filter */}
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="h-8 w-full text-xs">
+              <SelectTrigger className="h-9 w-[160px] text-xs">
                 <SelectValue placeholder="Semua Kategori" />
               </SelectTrigger>
               <SelectContent>
@@ -454,13 +220,11 @@ export function SopsList({ sops, categories, repositories = [], onToggleEnabled,
                 ))}
               </SelectContent>
             </Select>
-          </div>
 
-          {/* Repository Select (Visible when scope is ALL or REPOSITORY) */}
-          {scopeFilter !== "GLOBAL" && (
-            <div className="lg:col-span-2">
+            {/* Repository Filter (only if scope is not GLOBAL) */}
+            {scopeFilter !== "GLOBAL" && (
               <Select value={repoFilter} onValueChange={setRepoFilter}>
-                <SelectTrigger className="h-8 w-full text-xs">
+                <SelectTrigger className="h-9 w-[180px] text-xs">
                   <SelectValue placeholder="Semua Repositori" />
                 </SelectTrigger>
                 <SelectContent>
@@ -468,19 +232,17 @@ export function SopsList({ sops, categories, repositories = [], onToggleEnabled,
                     Semua Repositori
                   </SelectItem>
                   {availableRepoOptions.map((opt) => (
-                    <SelectItem key={opt.id} value={opt.id} className="text-xs font-mono">
+                    <SelectItem key={opt.id} value={opt.id} className="font-mono text-xs">
                       {opt.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          )}
+            )}
 
-          {/* Status Select */}
-          <div className="lg:col-span-2">
+            {/* Status Filter */}
             <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as "ALL" | "ENABLED" | "DISABLED")}>
-              <SelectTrigger className="h-8 w-full text-xs">
+              <SelectTrigger className="h-9 w-[130px] text-xs">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -497,216 +259,230 @@ export function SopsList({ sops, categories, repositories = [], onToggleEnabled,
             </Select>
           </div>
 
-          {/* Sort Select */}
-          <div className="lg:col-span-2">
-            <Select
-              value={sortBy}
-              onValueChange={(v) => setSortBy(v as "UPDATED_DESC" | "UPDATED_ASC" | "TITLE_ASC" | "TITLE_DESC")}
-            >
-              <SelectTrigger className="h-8 w-full text-xs">
-                <SelectValue placeholder="Urutkan" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="UPDATED_DESC" className="text-xs">
-                  Terbaru Diubah
-                </SelectItem>
-                <SelectItem value="UPDATED_ASC" className="text-xs">
-                  Terlama Diubah
-                </SelectItem>
-                <SelectItem value="TITLE_ASC" className="text-xs">
-                  Nama (A - Z)
-                </SelectItem>
-                <SelectItem value="TITLE_DESC" className="text-xs">
-                  Nama (Z - A)
-                </SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Right Action & Info */}
+          <div className="flex shrink-0 items-center gap-2 self-end lg:self-center">
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleResetFilters}
+                className="h-8 gap-1 px-2 text-muted-foreground text-xs hover:text-foreground"
+                title="Reset semua filter"
+              >
+                <RotateCcw className="size-3" />
+                Reset Filter
+              </Button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      {filteredSops.length === 0 ? (
-        <div className="rounded-xl border border-dashed bg-muted/20 p-12 text-center space-y-3">
-          <BookOpen className="size-8 mx-auto text-muted-foreground/60" />
-          <div className="space-y-1">
-            <h4 className="font-semibold text-sm text-foreground">Tidak Ada Aturan Coding SOP yang Cocok</h4>
-            <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-              Tidak ditemukan aturan dengan filter saat ini. Ubah kata kunci pencarian atau sesuaikan opsi filter Anda.
-            </p>
-          </div>
-          <Button variant="outline" size="sm" onClick={handleResetFilters} className="h-8 text-xs gap-1.5">
-            <RotateCcw className="size-3" />
-            Reset Filter
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-8">
-          {/* SECTION 1: GLOBAL SOPS (Visible on ALL or GLOBAL tabs) */}
-          {scopeFilter !== "REPOSITORY" && (
-            <div className="space-y-3.5">
-              {/* Section Header */}
-              <div className="flex items-center justify-between pb-2 border-b border-border/70">
-                <div className="flex items-center gap-2.5">
-                  <div className="size-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                    <Globe className="size-4" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-sm text-foreground">Global Coding SOP</h3>
-                      <Badge variant="secondary" className="text-[10px] font-mono px-2 py-0">
-                        {globalSops.length} aturan
-                      </Badge>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      Aturan standar umum organisasi yang berlaku untuk seluruh repositori & pull request.
-                    </p>
-                  </div>
-                </div>
-              </div>
+      {/* Main Table Container */}
+      <div className="overflow-hidden rounded-lg border bg-card shadow-xs">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className="bg-muted/20">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className={`w-[260px] ${dashboardTableStyles.th}`}>Judul SOP</TableHead>
+                <TableHead className={`w-[140px] ${dashboardTableStyles.th}`}>Kategori</TableHead>
+                <TableHead className={`w-[150px] ${dashboardTableStyles.th}`}>Scope / Target</TableHead>
+                <TableHead className={`min-w-[240px] ${dashboardTableStyles.th}`}>Ringkasan Panduan</TableHead>
+                <TableHead className={`w-[130px] ${dashboardTableStyles.th}`}>Terakhir Diubah</TableHead>
+                <TableHead className={`w-[110px] ${dashboardTableStyles.th}`}>Status</TableHead>
+                <TableHead className={dashboardTableStyles.thStickyAction}>Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(() => {
+                if (sops.length === 0) {
+                  return (
+                    <TableRow>
+                      <TableCell colSpan={7} className="p-0">
+                        <DashboardEmptyState
+                          icon={BookOpen}
+                          title="Belum Ada Aturan Coding SOP"
+                          description="Tambahkan panduan SOP pertama atau impor berkas Markdown untuk mulai menjalankan peninjauan otomatis berbasis aturan organisasi."
+                          action={
+                            <Button asChild size="sm" className="gap-1.5 font-semibold text-xs">
+                              <Link href="/dashboard/sops/create">Tulis SOP Baru</Link>
+                            </Button>
+                          }
+                        />
+                      </TableCell>
+                    </TableRow>
+                  );
+                }
 
-              {/* Global SOPs Items */}
-              {globalSops.length === 0 ? (
-                <div className="rounded-lg border border-dashed p-6 text-center text-xs text-muted-foreground bg-muted/10">
-                  Tidak ada Global SOP yang cocok dengan kriteria filter saat ini.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-3">
-                  {globalSops.map((sop) => (
-                    <SopCardItem
-                      key={sop.id}
-                      sop={sop}
-                      onView={setViewingSop}
-                      onToggleEnabled={onToggleEnabled}
-                      onDeleteSop={onDeleteSop}
-                      showRepoBadge={false}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+                if (filteredSops.length === 0) {
+                  return (
+                    <TableRow>
+                      <TableCell colSpan={7} className="p-0">
+                        <DashboardEmptyState
+                          icon={BookOpen}
+                          title="Tidak Ada SOP yang Cocok"
+                          description="Tidak ditemukan aturan dengan kata kunci atau filter saat ini. Coba sesuaikan opsi filter Anda."
+                          action={
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleResetFilters}
+                              className="h-8 gap-1.5 font-medium text-xs"
+                            >
+                              <RotateCcw className="size-3" />
+                              Reset Filter
+                            </Button>
+                          }
+                        />
+                      </TableCell>
+                    </TableRow>
+                  );
+                }
 
-          {/* SECTION 2: REPOSITORY-SPECIFIC SOPS (Visible on ALL or REPOSITORY tabs) */}
-          {scopeFilter !== "GLOBAL" && (
-            <div className="space-y-4">
-              {/* Section Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border/70">
-                <div className="flex items-center gap-2.5">
-                  <div className="size-7 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                    <HardDrive className="size-4" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-sm text-foreground">SOP Khusus Repositori</h3>
-                      <Badge variant="secondary" className="text-[10px] font-mono px-2 py-0">
-                        {totalRepoSopsCount} aturan di {repoGroups.length} repositori
-                      </Badge>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      Aturan spesifik per project/repositori yang diutamakan (override) di atas aturan Global.
-                    </p>
-                  </div>
-                </div>
+                return filteredSops.map((sop) => {
+                  const isRepoScope = sop.scope === "REPOSITORY";
+                  let repoName = "Khusus Repositori";
+                  if (sop.projectKey && sop.repositorySlug) {
+                    repoName = `${sop.projectKey}/${sop.repositorySlug}`;
+                  } else if (sop.repository) {
+                    repoName = `${sop.repository.projectKey}/${sop.repository.slug}`;
+                  }
 
-                {repoGroups.length > 1 && (
-                  <div className="flex items-center gap-1.5 self-end sm:self-center">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={expandAll}
-                      className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
-                    >
-                      Bentangkan Semua
-                    </Button>
-                    <span className="text-border text-xs">|</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={collapseAll}
-                      className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
-                    >
-                      Ciutkan Semua
-                    </Button>
-                  </div>
-                )}
-              </div>
+                  const categoryName =
+                    typeof sop.category === "string"
+                      ? sop.category
+                      : (sop.category?.name ?? sop.categoryName ?? "Umum");
 
-              {/* Repository Groups List */}
-              {repoGroups.length === 0 ? (
-                <div className="rounded-lg border border-dashed p-6 text-center text-xs text-muted-foreground bg-muted/10">
-                  Tidak ada SOP Khusus Repositori yang cocok dengan kriteria filter saat ini.
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {repoGroups.map((group) => {
-                    const isCollapsed = Boolean(collapsedGroups[group.key]);
+                  const categoryColor =
+                    typeof sop.category === "object" && sop.category?.colorBadge
+                      ? getBadgeColor(sop.category.colorBadge)
+                      : getBadgeColor(undefined);
 
-                    return (
-                      <Card key={group.key} className="rounded-xl border shadow-2xs overflow-hidden bg-card/60">
-                        {/* Repository Header Banner */}
-                        <button
-                          type="button"
-                          onClick={() => toggleGroupCollapse(group.key)}
-                          className="w-full text-left px-4 py-3 bg-muted/30 border-b flex items-center justify-between gap-3 cursor-pointer hover:bg-muted/50 transition-colors select-none"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <span className="size-5 rounded flex items-center justify-center text-muted-foreground">
-                              {isCollapsed ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
-                            </span>
-
-                            <FolderGit2 className="size-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-
-                            <div className="flex items-center gap-2 flex-wrap min-w-0">
-                              <span className="font-mono text-xs font-semibold text-foreground">
-                                {group.projectKey} / {group.slug}
-                              </span>
-                              {group.name && group.name !== `${group.projectKey} / ${group.slug}` && (
-                                <span className="text-xs text-muted-foreground truncate">({group.name})</span>
-                              )}
-                              <Badge
-                                variant="outline"
-                                className="text-[10px] font-mono px-2 py-0 border-indigo-500/30 text-indigo-600 dark:text-indigo-400 bg-indigo-500/10"
-                              >
-                                {group.sops.length} SOP
-                              </Badge>
-                            </div>
+                  return (
+                    <TableRow key={sop.id} className="text-xs hover:bg-muted/30">
+                      {/* Judul SOP */}
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setViewingSop(sop)}
+                            className="line-clamp-1 cursor-pointer text-left font-semibold text-foreground transition-colors hover:text-primary"
+                          >
+                            {sop.title}
+                          </button>
+                          <div className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
+                            <FileText className="size-3 shrink-0 text-primary/70" />
+                            <span>ID: {sop.id.slice(0, 8)}</span>
                           </div>
+                        </div>
+                      </TableCell>
 
-                          <span className="text-[11px] text-muted-foreground shrink-0 font-medium">
-                            {isCollapsed ? "Klik untuk melihat SOP" : "Tutup grup"}
-                          </span>
-                        </button>
+                      {/* Kategori */}
+                      <TableCell>
+                        <Badge variant="outline" className="gap-1.5 font-medium text-[11px]">
+                          <span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: categoryColor }} />
+                          <span className="max-w-[90px] truncate">{categoryName}</span>
+                        </Badge>
+                      </TableCell>
 
-                        {/* SOP Items inside Repository Group */}
-                        {!isCollapsed && (
-                          <CardContent className="p-3.5 space-y-3 bg-muted/5">
-                            {group.sops.map((sop) => (
-                              <SopCardItem
-                                key={sop.id}
-                                sop={sop}
-                                onView={setViewingSop}
-                                onToggleEnabled={onToggleEnabled}
-                                onDeleteSop={onDeleteSop}
-                                showRepoBadge={false}
-                              />
-                            ))}
-                          </CardContent>
+                      {/* Scope / Target */}
+                      <TableCell>
+                        {isRepoScope ? (
+                          <Badge
+                            variant="outline"
+                            className="gap-1 border-primary/30 font-mono text-[10px] text-primary"
+                          >
+                            <HardDrive className="size-2.5 shrink-0" />
+                            <span className="max-w-[110px] truncate">{repoName}</span>
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="gap-1 font-mono text-[10px] text-muted-foreground">
+                            <Globe className="size-2.5 shrink-0" />
+                            Global
+                          </Badge>
                         )}
-                      </Card>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+                      </TableCell>
 
-      {/* SOP View Modal */}
+                      {/* Ringkasan Panduan */}
+                      <TableCell>
+                        <p className="line-clamp-2 max-w-sm text-muted-foreground text-xs leading-relaxed">
+                          {sop.summary || sop.rulesMarkdown?.slice(0, 120) || "Tidak ada deskripsi ringkas."}
+                        </p>
+                      </TableCell>
+
+                      {/* Terakhir Diubah */}
+                      <TableCell className="whitespace-nowrap font-mono text-[11px] text-muted-foreground">
+                        {new Date(sop.updatedAt).toLocaleDateString("id-ID", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </TableCell>
+
+                      {/* Status Toggle */}
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={sop.isEnabled}
+                            onCheckedChange={(checked) => {
+                              onToggleEnabled(sop.id, checked);
+                            }}
+                          />
+                          <span className="text-[11px] text-muted-foreground">{sop.isEnabled ? "Aktif" : "Mati"}</span>
+                        </div>
+                      </TableCell>
+
+                      {/* Sticky Action Column */}
+                      <TableCell className={dashboardTableStyles.tdStickyAction}>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setViewingSop(sop)}
+                            className="h-7 gap-1 border-primary/30 px-2 font-medium text-primary text-xs hover:bg-primary/10"
+                            title="Lihat SOP"
+                          >
+                            <Eye className="size-3.5" />
+                            Lihat
+                          </Button>
+
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon-xs" className="size-7 text-muted-foreground">
+                                <MoreHorizontal className="size-3.5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="text-xs">
+                              <DropdownMenuItem asChild>
+                                <Link href={`/dashboard/sops/${sop.id}/edit`} className="cursor-pointer gap-2">
+                                  <Edit2 className="size-3.5" />
+                                  Edit Aturan SOP
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => onDeleteSop(sop.id, sop.title)}
+                                className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="size-3.5" />
+                                Hapus SOP
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                });
+              })()}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      {/* Modal Dialog for viewing SOP Markdown content */}
       <SopViewDialog
         sop={viewingSop}
-        open={!!viewingSop}
+        open={Boolean(viewingSop)}
         onOpenChange={(open) => {
           if (!open) setViewingSop(null);
         }}

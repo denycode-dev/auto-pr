@@ -13,7 +13,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
   const components: Components = {
     h1: ({ children, ...props }) => (
       <h1
-        className="text-lg font-bold tracking-tight text-foreground mt-5 mb-2.5 pb-1.5 border-b border-border/60 first:mt-0"
+        className="mt-3 mb-1.5 border-border/60 border-b pb-1 font-bold text-base text-foreground leading-snug tracking-tight first:mt-0"
         {...props}
       >
         {children}
@@ -21,81 +21,87 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
     ),
     h2: ({ children, ...props }) => (
       <h2
-        className="text-base font-semibold tracking-tight text-foreground mt-4 mb-2 pb-1 border-b border-border/40 first:mt-0"
+        className="mt-2.5 mb-1 border-border/40 border-b pb-0.5 font-semibold text-foreground text-sm leading-snug tracking-tight first:mt-0"
         {...props}
       >
         {children}
       </h2>
     ),
     h3: ({ children, ...props }) => (
-      <h3 className="text-sm font-semibold tracking-tight text-foreground mt-3.5 mb-1.5 first:mt-0" {...props}>
+      <h3
+        className="mt-2 mb-0.5 font-semibold text-foreground text-xs leading-snug tracking-tight first:mt-0"
+        {...props}
+      >
         {children}
       </h3>
     ),
     h4: ({ children, ...props }) => (
-      <h4 className="text-xs font-semibold tracking-tight text-foreground mt-3 mb-1 first:mt-0" {...props}>
+      <h4
+        className="mt-1.5 mb-0.5 font-semibold text-[11px] text-foreground leading-snug tracking-tight first:mt-0"
+        {...props}
+      >
         {children}
       </h4>
     ),
     p: ({ children, ...props }) => (
-      <p className="text-xs leading-relaxed text-foreground/90 my-2" {...props}>
+      <p className="my-1 text-foreground/90 text-xs leading-normal first:mt-0 last:mb-0" {...props}>
         {children}
       </p>
     ),
     ul: ({ children, ...props }) => (
-      <ul className="my-2 ml-4 list-disc space-y-1 text-xs text-foreground/90" {...props}>
+      <ul className="my-1 ml-4 list-disc space-y-0.5 text-foreground/90 text-xs" {...props}>
         {children}
       </ul>
     ),
     ol: ({ children, ...props }) => (
-      <ol className="my-2 ml-4 list-decimal space-y-1 text-xs text-foreground/90" {...props}>
+      <ol className="my-1 ml-4 list-decimal space-y-0.5 text-foreground/90 text-xs" {...props}>
         {children}
       </ol>
     ),
     li: ({ children, ...props }) => (
-      <li className="leading-relaxed pl-1" {...props}>
+      <li className="pl-0.5 leading-normal" {...props}>
         {children}
       </li>
     ),
     blockquote: ({ children, ...props }) => (
       <blockquote
-        className="my-3 border-l-2 border-primary/70 bg-muted/30 px-3.5 py-2 text-xs italic text-muted-foreground rounded-r"
+        className="my-1.5 rounded-r border-primary/70 border-l-2 bg-muted/30 px-3 py-1 text-muted-foreground text-xs italic leading-normal"
         {...props}
       >
         {children}
       </blockquote>
     ),
-    hr: ({ ...props }) => <hr className="my-4 border-border/60" {...props} />,
+    hr: ({ ...props }) => <hr className="my-2 border-border/60" {...props} />,
     a: ({ href, children, ...props }) => (
       <a
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-primary font-medium underline underline-offset-2 hover:opacity-80 transition-opacity"
+        className="font-medium text-primary underline underline-offset-2 transition-opacity hover:opacity-80"
         {...props}
       >
         {children}
       </a>
     ),
     table: ({ children, ...props }) => (
-      <div className="my-3 overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-xs text-left border-collapse" {...props}>
+      <div className="my-1.5 overflow-x-auto rounded-lg border border-border">
+        <table className="w-full border-collapse text-left text-xs" {...props}>
           {children}
         </table>
       </div>
     ),
     thead: ({ children, ...props }) => (
-      <thead className="bg-muted/60 text-foreground font-semibold border-b border-border" {...props}>
+      <thead className="border-border border-b bg-muted/60 font-semibold text-foreground" {...props}>
         {children}
       </thead>
     ),
     th: ({ children, ...props }) => (
-      <th className="p-2.5 text-xs font-semibold text-foreground" {...props}>
+      <th className="p-1.5 font-semibold text-foreground text-xs" {...props}>
         {children}
       </th>
     ),
     td: ({ children, ...props }) => (
-      <td className="p-2.5 text-xs border-t border-border/40 text-foreground/90" {...props}>
+      <td className="border-border/40 border-t p-1.5 text-foreground/90 text-xs leading-normal" {...props}>
         {children}
       </td>
     ),
@@ -107,7 +113,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
         const lang = match ? match[1] : "typescript";
         const rawCode = String(children).replace(/\n$/, "");
         return (
-          <div className="my-3">
+          <div className="my-1.5">
             <ShikiCodeView code={rawCode} lang={lang} title={`Contoh Kode (${lang})`} maxHeight="360px" />
           </div>
         );
@@ -116,7 +122,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
       return (
         <code
           className={cn(
-            "rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] font-medium text-primary border border-border/50",
+            "rounded border border-border/50 bg-muted px-1.5 py-0.5 font-medium font-mono text-[11px] text-primary",
             codeClassName,
           )}
           {...props}
@@ -128,7 +134,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
   };
 
   return (
-    <div className={cn("markdown-body text-xs", className)}>
+    <div className={cn("markdown-body text-xs leading-normal", className)}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {content}
       </ReactMarkdown>

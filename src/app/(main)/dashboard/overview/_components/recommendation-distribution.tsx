@@ -70,37 +70,33 @@ export function RecommendationDistribution() {
   ];
 
   return (
-    <Card className="shadow-xs border border-border/80">
+    <Card className="border border-border/80 shadow-xs">
       <CardHeader className="pb-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
-          <div className="space-y-0.5 min-w-0">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Bot className="size-4 text-indigo-500 shrink-0" />
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 space-y-0.5">
+            <CardTitle className="flex items-center gap-2 font-semibold text-base">
+              <Bot className="size-4 shrink-0 text-indigo-500" />
               <span className="truncate">Distribusi Rekomendasi AI</span>
             </CardTitle>
-            <CardDescription className="text-xs">Rasio saran status yang dihasilkan OpenAI SDK</CardDescription>
           </div>
-          <span className="inline-flex items-center self-start sm:self-center shrink-0 whitespace-nowrap text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shadow-xs">
-            {total > 0 ? `${agreementRate}% Keselarasan Senior` : "Belum Ada Data PR"}
-          </span>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {total === 0 ? (
-          <div className="py-10 text-center text-xs text-muted-foreground">
+          <div className="py-10 text-center text-muted-foreground text-xs">
             Belum ada data rekomendasi pull request di database.
           </div>
         ) : (
           <div className="space-y-3.5">
             {stats.map((s) => (
               <div key={s.label} className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <div className="flex min-w-0 items-center gap-2">
                     <s.icon className={`size-3.5 shrink-0 ${s.textColor}`} />
-                    <span className="font-medium text-foreground truncate">{s.label}</span>
-                    <span className="text-muted-foreground hidden sm:inline truncate">({s.sublabel})</span>
+                    <span className="truncate font-medium text-foreground">{s.label}</span>
+                    <span className="hidden truncate text-muted-foreground sm:inline">({s.sublabel})</span>
                   </div>
-                  <div className="flex items-center gap-2 font-mono shrink-0">
+                  <div className="flex shrink-0 items-center gap-2 font-mono">
                     <span className="font-semibold">{s.count} PR</span>
                     <span className="text-muted-foreground">({s.percentage}%)</span>
                   </div>
@@ -110,11 +106,6 @@ export function RecommendationDistribution() {
             ))}
           </div>
         )}
-
-        <div className="rounded-lg border border-border/80 bg-muted/40 p-3 text-xs text-muted-foreground">
-          <strong className="text-foreground font-medium">Prinsip Human-in-the-Loop (BR-07):</strong> AI hanya bertugas
-          memberikan rekomendasi. Keputusan final 100% berada di tangan Senior Engineer melalui panel review antrean.
-        </div>
       </CardContent>
     </Card>
   );

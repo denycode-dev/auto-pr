@@ -6,14 +6,7 @@ import { Server } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import type { Repository } from "@/data/code-review/types";
 
@@ -81,86 +74,88 @@ export function ConnectRepoDialog({ open, onOpenChange, onAddRepo }: ConnectRepo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px]">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <Server className="size-4 text-primary" />
-              Hubungkan Repositori Bitbucket Server
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              Daftarkan proyek Bitbucket Server 8.19 agar event Pull Request dapat dipantau oleh AI Review Bot.
-            </DialogDescription>
-          </DialogHeader>
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[500px]">
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4 p-6">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 font-semibold text-base">
+                <Server className="size-4 text-primary" />
+                Hubungkan Repositori Bitbucket Server
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Daftarkan proyek Bitbucket Server 8.19 agar event Pull Request dapat dipantau oleh AI Review Bot.
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="space-y-3 py-2 text-xs">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-3 pt-1 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label htmlFor="connect-project-key" className="font-semibold text-foreground">
+                    Project Key (Bitbucket)
+                  </label>
+                  <Input
+                    id="connect-project-key"
+                    placeholder="Contoh: FIN, CORE"
+                    value={projectKey}
+                    onChange={(e) => setProjectKey(e.target.value)}
+                    className="h-9 font-mono text-xs uppercase"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="connect-repo-slug" className="font-semibold text-foreground">
+                    Repository Slug
+                  </label>
+                  <Input
+                    id="connect-repo-slug"
+                    placeholder="Contoh: payment-service"
+                    value={slug}
+                    onChange={(e) => setSlug(e.target.value)}
+                    className="h-9 font-mono text-xs lowercase"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1.5">
-                <label htmlFor="connect-project-key" className="font-semibold text-foreground">
-                  Project Key (Bitbucket)
+                <label htmlFor="connect-repo-name" className="font-semibold text-foreground">
+                  Nama Deskriptif Repositori
                 </label>
                 <Input
-                  id="connect-project-key"
-                  placeholder="Contoh: FIN, CORE"
-                  value={projectKey}
-                  onChange={(e) => setProjectKey(e.target.value)}
-                  className="h-9 font-mono uppercase text-xs"
+                  id="connect-repo-name"
+                  placeholder="Contoh: Financial Payment Gateway API"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="h-9 text-xs"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label htmlFor="connect-repo-slug" className="font-semibold text-foreground">
-                  Repository Slug
+                <label htmlFor="connect-default-branch" className="font-semibold text-foreground">
+                  Default Target Branch
                 </label>
                 <Input
-                  id="connect-repo-slug"
-                  placeholder="Contoh: payment-service"
-                  value={slug}
-                  onChange={(e) => setSlug(e.target.value)}
-                  className="h-9 font-mono lowercase text-xs"
+                  id="connect-default-branch"
+                  value={defaultBranch}
+                  onChange={(e) => setDefaultBranch(e.target.value)}
+                  placeholder="main / master"
+                  className="h-9 font-mono text-xs"
                 />
               </div>
-            </div>
 
-            <div className="space-y-1.5">
-              <label htmlFor="connect-repo-name" className="font-semibold text-foreground">
-                Nama Deskriptif Repositori
-              </label>
-              <Input
-                id="connect-repo-name"
-                placeholder="Contoh: Financial Payment Gateway API"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="h-9 text-xs"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label htmlFor="connect-default-branch" className="font-semibold text-foreground">
-                Default Target Branch
-              </label>
-              <Input
-                id="connect-default-branch"
-                value={defaultBranch}
-                onChange={(e) => setDefaultBranch(e.target.value)}
-                placeholder="main / master"
-                className="h-9 font-mono text-xs"
-              />
-            </div>
-
-            <div className="rounded border bg-muted/40 p-2.5 text-[11px] text-muted-foreground">
-              Sinkronisasi data menggunakan Bitbucket Server 8.19 REST API secara on-demand dan terprediksi.
+              <div className="rounded border bg-muted/40 p-2.5 text-[11px] text-muted-foreground">
+                Sinkronisasi data menggunakan Bitbucket Server 8.19 REST API secara on-demand dan terprediksi.
+              </div>
             </div>
           </div>
 
-          <DialogFooter>
+          <div className="flex items-center justify-between border-t bg-muted/30 px-6 py-4">
             <Button variant="outline" size="sm" type="button" onClick={() => onOpenChange(false)}>
               Batal
             </Button>
-            <Button size="sm" type="submit" disabled={isTesting}>
+            <Button size="sm" type="submit" disabled={isTesting} className="gap-1.5 font-semibold">
               {isTesting ? "Memverifikasi API Bitbucket..." : "Uji & Hubungkan"}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

@@ -29,62 +29,39 @@ export function OverviewHeader() {
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex min-w-0 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="font-semibold text-2xl tracking-tight sm:text-3xl text-foreground">
+            <h1 className="font-semibold text-2xl text-foreground tracking-tight sm:text-3xl">
               Code Review & Decision Cockpit
             </h1>
             <Badge
               variant="outline"
-              className="h-6 gap-1.5 border-emerald-500/30 bg-emerald-500/10 px-2.5 text-emerald-600 dark:text-emerald-400 shrink-0 whitespace-nowrap"
+              className="h-6 shrink-0 gap-1.5 whitespace-nowrap border-emerald-500/30 bg-emerald-500/10 px-2.5 text-emerald-600 dark:text-emerald-400"
             >
-              <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500" />
               Live Active
             </Badge>
           </div>
-          <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed max-w-3xl">
+          <p className="max-w-3xl text-muted-foreground text-xs leading-relaxed sm:text-sm">
             Sistem Otomasi Review Berbasis AI & Asisten Keputusan Senior Engineer untuk Bitbucket Server 8.19
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0 self-start xl:self-center">
+        <div className="flex shrink-0 items-center gap-2.5 self-start xl:self-center">
           <Button
             variant="outline"
             size="sm"
             onClick={handleRefresh}
             disabled={refreshing}
-            className="gap-1.5 whitespace-nowrap shadow-xs text-xs"
+            className="gap-1.5 whitespace-nowrap text-xs shadow-xs"
           >
             <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
             {refreshing ? "Menyinkronkan..." : "Sinkronisasi Ulang"}
           </Button>
-          <Button asChild size="sm" className="gap-1.5 shadow-xs whitespace-nowrap text-xs">
+          <Button asChild size="sm" className="gap-1.5 whitespace-nowrap text-xs shadow-xs">
             <Link href="/dashboard/pull-requests">
               <GitPullRequest className="size-3.5" />
               Buka Antrean PR
             </Link>
           </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/60">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Server className="size-3.5 text-primary" />
-          <span>
-            Bitbucket Server: <strong className="font-medium text-foreground">v8.19.0 (Data Center)</strong>
-          </span>
-        </div>
-        <span className="text-border">•</span>
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Bot className="size-3.5 text-primary" />
-          <span>
-            Analisis AI: <strong className="font-medium text-foreground">Coding SOP & Keamanan</strong>
-          </span>
-        </div>
-        <span className="text-border">•</span>
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <CheckCircle2 className="size-3.5 text-emerald-500" />
-          <span>
-            Sinkronisasi: <strong className="font-medium text-foreground">Bitbucket REST API 8.19</strong>
-          </span>
         </div>
       </div>
     </div>

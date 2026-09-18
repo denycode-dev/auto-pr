@@ -1,10 +1,10 @@
 import prisma from "@/lib/prisma";
 import { getAiClient } from "@/server/ai/client";
 import { bitbucketClient } from "@/server/bitbucket/client";
+import { incrementModelUsage } from "@/server/db/settings";
 
 import {
   calculateDiffStats,
-  cleanGitPath,
   deduplicateIssues,
   isDuplicateIssue,
   isLineInChangedDiff,
@@ -32,10 +32,19 @@ export interface ReviewAiResponseFormat {
   issues: ReviewAiIssueOutput[];
 }
 
+export interface ExecuteAiReviewOptions {
+  providerId?: string;
+  model?: string;
+}
+
 /**
  * Execute automated code review on a pull request using OpenAI SDK on-demand (BR-02, BR-05, BR-06)
  */
-export async function executeAiReview(pullRequestInternalId: string, forceRefreshDiff = false) {
+export async function executeAiReview(
+  pullRequestInternalId: string,
+  forceRefreshDiff = false,
+  options?: ExecuteAiReviewOptions,
+) {
   const pr = await prisma.pullRequest.findUnique({
     where: { id: pullRequestInternalId },
     include: { repository: true },
@@ -214,8 +223,11 @@ ${analyzableDiffChunks || rawDiff}
 \`\`\`
 `.trim();
 
-    const { client, model } = await getAiClient();
+    const { client, model, providerId, providerName } = await getAiClient(options);
     const requestTimeout = Number(process.env.AI_REQUEST_TIMEOUT_MS) || 240000;
+
+    // Track model usage frequency
+    void incrementModelUsage(providerId, model);
 
     const completion = await client.chat.completions.create(
       {
@@ -316,6 +328,9 @@ ${analyzableDiffChunks || rawDiff}
           ...aiResult,
           issues: finalNewIssues,
           filteredOutCount: rawIssues.length - finalNewIssues.length,
+          providerId,
+          providerName,
+          model,
         } as unknown as object,
       },
     });
@@ -384,7 +399,7 @@ export async function publishAiReviewToBitbucket(
     },
   });
 
-  if (!pr || !pr.reviewRuns[0]) {
+  if (!pr?.reviewRuns[0]) {
     throw new Error(`PullRequest atau ReviewRun untuk ID '${pullRequestId}' tidak ditemukan`);
   }
 
@@ -403,19 +418,17 @@ export async function publishAiReviewToBitbucket(
 
   let publishedCount = 0;
 
+  const severityEmojiMap: Record<string, string> = {
+    CRITICAL: "🚨",
+    HIGH: "⚠️",
+    MEDIUM: "🟡",
+    LOW: "🔵",
+  };
+
   // 1. Post unposted inline comments with 80ms throttle
   for (const issue of issuesToPost) {
     const ext = issue.filePath.split(".").pop() || "typescript";
-    const severityEmoji =
-      issue.severity === "CRITICAL"
-        ? "🚨"
-        : issue.severity === "HIGH"
-          ? "⚠️"
-          : issue.severity === "MEDIUM"
-            ? "🟡"
-            : issue.severity === "LOW"
-              ? "🔵"
-              : "ℹ️";
+    const severityEmoji = severityEmojiMap[issue.severity] || "ℹ️";
 
     const commentText = `### [AI Review] ${severityEmoji} **${issue.title}** (\`${issue.severity}\` | \`${issue.category}\`)
 

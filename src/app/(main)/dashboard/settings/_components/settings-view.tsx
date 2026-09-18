@@ -2,75 +2,68 @@
 
 import * as React from "react";
 
-import { Bot, CheckCircle2, Cpu, Eye, EyeOff, Filter, RefreshCw, Save, Server, XCircle } from "lucide-react";
+import { Bot, Filter, Server } from "lucide-react";
 import { toast } from "sonner";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { DashboardPageHeader } from "@/app/(main)/dashboard/_components/dashboard-page-header";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { AiProvider } from "@/server/db/settings";
 
-interface SystemSettingsResponse {
+import { AiProviderModal } from "./ai-provider-modal";
+import { AiProviderTable } from "./ai-provider-table";
+import { BitbucketSettingsCard } from "./bitbucket-settings-card";
+import { DiffFilterCard } from "./diff-filter-card";
+
+interface SettingsDataResponse {
   bitbucket: {
     baseUrl: string;
     token: string;
     hasToken: boolean;
     seniorUserSlug: string;
   };
-  ai: {
-    baseUrl: string;
-    apiKey: string;
-    model: string;
-    hasApiKey: boolean;
-  };
+  aiProviders: AiProvider[];
+  defaultProviderId?: string;
 }
 
 export function SettingsView() {
-  // Bitbucket Form State
+  const [activeTab, setActiveTab] = React.useState<string>("ai");
+  const [_isLoading, setIsLoading] = React.useState(true);
+
+  // Bitbucket state
   const [bbUrl, setBbUrl] = React.useState("https://bitbucket.bri.co.id");
   const [bbToken, setBbToken] = React.useState("");
   const [bbSeniorSlug, setBbSeniorSlug] = React.useState("senior.lead");
-  const [showBbToken, setShowBbToken] = React.useState(false);
 
-  // AI Gateway Form State
-  const [aiBaseUrl, setAiBaseUrl] = React.useState("https://organization.api-github.com/v1");
-  const [aiApiKey, setAiApiKey] = React.useState("");
-  const [aiModel, setAiModel] = React.useState("deepseek-flash");
-  const [showAiKey, setShowAiKey] = React.useState(false);
+  // Multi-provider AI state
+  const [aiProviders, setAiProviders] = React.useState<AiProvider[]>([]);
+  const [testingProviderId, setTestingProviderId] = React.useState<string | null>(null);
 
-  // Status & Loading States
-  const [isLoadingSettings, setIsLoadingSettings] = React.useState(true);
-  const [isSavingBb, setIsSavingBb] = React.useState(false);
-  const [isSavingAi, setIsSavingAi] = React.useState(false);
-  const [isTestingBb, setIsTestingBb] = React.useState(false);
-  const [isTestingAi, setIsTestingAi] = React.useState(false);
-  const [bbStatus, setBbStatus] = React.useState<"IDLE" | "OK" | "FAILED">("IDLE");
-  const [aiStatus, setAiStatus] = React.useState<"IDLE" | "OK" | "FAILED">("IDLE");
+  // Modal state
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [providerToEdit, setProviderToEdit] = React.useState<AiProvider | null>(null);
 
-  // Load Settings from Database on mount
+  // Load all settings on mount
   const loadSettings = React.useCallback(async () => {
-    setIsLoadingSettings(true);
+    setIsLoading(true);
     try {
       const res = await fetch("/api/settings");
       const json = await res.json();
       if (res.ok && json.success && json.data) {
-        const d: SystemSettingsResponse = json.data;
+        const d: SettingsDataResponse = json.data;
         if (d.bitbucket) {
           setBbUrl(d.bitbucket.baseUrl || "https://bitbucket.bri.co.id");
           setBbToken(d.bitbucket.token || "");
           setBbSeniorSlug(d.bitbucket.seniorUserSlug || "senior.lead");
         }
-        if (d.ai) {
-          setAiBaseUrl(d.ai.baseUrl || "https://organization.api-github.com/v1");
-          setAiApiKey(d.ai.apiKey || "");
-          setAiModel(d.ai.model || "deepseek-flash");
+        if (Array.isArray(d.aiProviders)) {
+          setAiProviders(d.aiProviders);
         }
       }
     } catch (err) {
       console.error("Gagal memuat pengaturan sistem:", err);
-      toast.error("Gagal memuat konfigurasi dari database");
+      toast.error("Gagal memuat konfigurasi dari database.");
     } finally {
-      setIsLoadingSettings(false);
+      setIsLoading(false);
     }
   }, []);
 
@@ -78,385 +71,212 @@ export function SettingsView() {
     void loadSettings();
   }, [loadSettings]);
 
-  // Save Bitbucket Configuration to Database
-  const handleSaveBitbucket = async () => {
-    if (!bbUrl.trim()) {
-      toast.error("Endpoint URL Bitbucket Server tidak boleh kosong.");
-      return;
+  // Open modal for new provider
+  const handleOpenAdd = () => {
+    setProviderToEdit(null);
+    setIsModalOpen(true);
+  };
+
+  // Open modal for editing provider
+  const handleOpenEdit = (provider: AiProvider) => {
+    setProviderToEdit(provider);
+    setIsModalOpen(true);
+  };
+
+  // Save new or edited provider
+  const handleSaveProvider = async (provider: AiProvider) => {
+    let nextList: AiProvider[];
+    const exists = aiProviders.some((p) => p.id === provider.id);
+
+    if (exists) {
+      nextList = aiProviders.map((p) => {
+        if (p.id === provider.id) return provider;
+        // If this provider was made default, remove default from others
+        if (provider.isDefault) return { ...p, isDefault: false };
+        return p;
+      });
+    } else {
+      if (provider.isDefault || aiProviders.length === 0) {
+        provider.isDefault = true;
+        nextList = [...aiProviders.map((p) => ({ ...p, isDefault: false })), provider];
+      } else {
+        nextList = [...aiProviders, provider];
+      }
     }
-    setIsSavingBb(true);
+
+    const res = await fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ aiProviders: nextList }),
+    });
+
+    const data = await res.json();
+    if (res.ok && data.success) {
+      setAiProviders(nextList);
+      toast.success(exists ? "Provider Berhasil Diperbarui" : "Provider AI Baru Ditambahkan", {
+        description: `Konfigurasi '${provider.name}' disimpan ke database.`,
+      });
+    } else {
+      throw new Error(data.message || "Gagal menyimpan ke database.");
+    }
+  };
+
+  // Set provider as default
+  const handleSetDefault = async (providerId: string) => {
+    const nextList = aiProviders.map((p) => ({
+      ...p,
+      isDefault: p.id === providerId,
+    }));
+
     try {
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          bitbucket_base_url: bbUrl.trim(),
-          bitbucket_access_token: bbToken.trim(),
-          senior_user_slug: bbSeniorSlug.trim(),
-        }),
+        body: JSON.stringify({ aiProviders: nextList }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast.success("Pengaturan Bitbucket Berhasil Disimpan!", {
-          description: "Konfigurasi aktif disimpan ke database PostgreSQL.",
+        setAiProviders(nextList);
+        const target = nextList.find((p) => p.id === providerId);
+        toast.success(`'${target?.name}' Dijadikan Provider Utama`, {
+          description: "Provider ini akan dipilih secara default saat memindai kode.",
         });
       } else {
-        toast.error(data.message || "Gagal menyimpan pengaturan Bitbucket ke database.");
+        toast.error(data.message || "Gagal mengubah provider default.");
       }
     } catch {
-      toast.error("Terjadi kesalahan jaringan saat menyimpan konfigurasi.");
-    } finally {
-      setIsSavingBb(false);
+      toast.error("Terjadi kesalahan jaringan.");
     }
   };
 
-  // Save AI Configuration to Database
-  const handleSaveAi = async () => {
-    if (!aiBaseUrl.trim() || !aiModel.trim()) {
-      toast.error("Base URL dan Model Name AI tidak boleh kosong.");
+  // Delete provider
+  const handleDeleteProvider = async (providerId: string) => {
+    if (aiProviders.length <= 1) {
+      toast.error("Tidak dapat menghapus. Sistem membutuhkan minimal 1 provider aktif.");
       return;
     }
-    setIsSavingAi(true);
+
+    const target = aiProviders.find((p) => p.id === providerId);
+    const nextList = aiProviders.filter((p) => p.id !== providerId);
+
+    // If deleted provider was default, make the first remaining default
+    if (target?.isDefault && nextList.length > 0) {
+      nextList[0] = { ...nextList[0], isDefault: true };
+    }
+
     try {
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          openai_base_url: aiBaseUrl.trim(),
-          qodeer_api_key: aiApiKey.trim(),
-          openai_model: aiModel.trim(),
-        }),
+        body: JSON.stringify({ aiProviders: nextList }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast.success("Pengaturan AI Gateway Berhasil Disimpan!", {
-          description: "Konfigurasi aktif disimpan ke database PostgreSQL.",
-        });
+        setAiProviders(nextList);
+        toast.success(`Provider '${target?.name}' Dihapus`);
       } else {
-        toast.error(data.message || "Gagal menyimpan pengaturan AI ke database.");
+        toast.error(data.message || "Gagal menghapus provider.");
       }
     } catch {
-      toast.error("Terjadi kesalahan jaringan saat menyimpan konfigurasi AI.");
-    } finally {
-      setIsSavingAi(false);
+      toast.error("Terjadi kesalahan jaringan saat menghapus.");
     }
   };
 
-  // Test Bitbucket Connection with current input
-  const testBitbucketConnection = async () => {
-    setIsTestingBb(true);
-    try {
-      const res = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          target: "bitbucket",
-          baseUrl: bbUrl.trim(),
-          token: bbToken.trim(),
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success && data.data?.status === "OK") {
-        setBbStatus("OK");
-        toast.success("Pengujian Bitbucket Server Berhasil!", {
-          description: data.data?.message || "Terhubung ke Bitbucket Server.",
-        });
-      } else {
-        setBbStatus("FAILED");
-        toast.error("Koneksi Bitbucket Server Gagal", {
-          description: data.data?.message || data.message || "Endpoint tidak dapat dihubungi.",
-        });
-      }
-    } catch {
-      setBbStatus("FAILED");
-      toast.error("Gagal melakukan pengujian koneksi Bitbucket Server.");
-    } finally {
-      setIsTestingBb(false);
-    }
-  };
+  // Test provider connection
+  const handleTestConnection = async (provider: AiProvider) => {
+    setTestingProviderId(provider.id);
+    const testModel = provider.defaultModel ?? provider.models[0] ?? "deepseek-flash";
 
-  // Test AI Connection with current input
-  const testAiConnection = async () => {
-    setIsTestingAi(true);
     try {
       const res = await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           target: "ai",
-          baseUrl: aiBaseUrl.trim(),
-          apiKey: aiApiKey.trim(),
-          model: aiModel.trim(),
+          baseUrl: provider.baseUrl,
+          apiKey: provider.apiKey,
+          model: testModel,
         }),
       });
+
       const data = await res.json();
       if (res.ok && data.success && data.data?.status === "OK") {
-        setAiStatus("OK");
-        toast.success("Koneksi AI Gateway Berhasil!", {
-          description: data.data?.message || "Model siap memproses review.",
+        toast.success(`Koneksi '${provider.name}' Berhasil!`, {
+          description: data.data?.message || `Endpoint merespons dengan model '${testModel}'.`,
         });
       } else {
-        setAiStatus("FAILED");
-        toast.error("Koneksi AI Gateway Gagal", {
-          description: data.data?.message || data.message || "Model atau gateway tidak responsif.",
+        toast.error(`Koneksi '${provider.name}' Gagal`, {
+          description: data.data?.message || data.message || "Endpoint tidak dapat dihubungi.",
         });
       }
     } catch {
-      setAiStatus("FAILED");
-      toast.error("Gagal menghubungi endpoint AI Gateway.");
+      toast.error(`Gagal menguji koneksi provider '${provider.name}'.`);
     } finally {
-      setIsTestingAi(false);
+      setTestingProviderId(null);
     }
   };
 
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col gap-1">
-        <h1 className="font-semibold text-2xl tracking-tight sm:text-3xl text-foreground">
-          Integrasi & Pengaturan Sistem
-        </h1>
-        <p className="text-muted-foreground text-xs sm:text-sm">
-          Konfigurasi koneksi Bitbucket Server 8.19 REST API dan OpenAI Gateway yang tersimpan dinamis di database.
-        </p>
-      </div>
+      <DashboardPageHeader
+        title="Pengaturan & Integrasi Sistem"
+        description="Kelola penyedia model AI eksternal, integrasi Bitbucket Server, dan aturan optimasi diff token."
+      />
 
-      {/* Main Configuration Grid: 2 Column Layout (PostgreSQL card removed) */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Bitbucket Server 8.19 Dynamic Settings Card */}
-        <Card className="shadow-xs border flex flex-col justify-between">
-          <div>
-            <CardHeader className="pb-3 border-b bg-muted/20">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Server className="size-4 text-primary" />
-                  <CardTitle className="text-base font-semibold">Bitbucket Server v8.19</CardTitle>
-                </div>
-              </div>
-            </CardHeader>
+      {/* Tabs Navigation for Minimal Distraction & Low Cognitive Load */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid h-9 w-full max-w-md grid-cols-3 text-xs">
+          <TabsTrigger value="ai" className="gap-1.5 font-medium text-xs">
+            <Bot className="size-3.5" />
+            Provider AI
+          </TabsTrigger>
+          <TabsTrigger value="bitbucket" className="gap-1.5 font-medium text-xs">
+            <Server className="size-3.5" />
+            Bitbucket Server
+          </TabsTrigger>
+          <TabsTrigger value="diff" className="gap-1.5 font-medium text-xs">
+            <Filter className="size-3.5" />
+            Kebijakan Diff
+          </TabsTrigger>
+        </TabsList>
 
-            <CardContent className="p-4 space-y-4 text-xs">
-              <div className="space-y-1.5">
-                <label htmlFor="bb-url" className="font-semibold text-foreground flex items-center justify-between">
-                  <span>Bitbucket Server Endpoint URL</span>
-                </label>
-                <Input
-                  id="bb-url"
-                  value={bbUrl}
-                  onChange={(e) => setBbUrl(e.target.value)}
-                  placeholder="https://bitbucket.bri.co.id"
-                  className="font-mono text-xs h-9"
-                />
-              </div>
+        {/* Tab 1: AI Providers Table View */}
+        <TabsContent value="ai" className="space-y-4">
+          <AiProviderTable
+            providers={aiProviders}
+            onAddClick={handleOpenAdd}
+            onEditClick={handleOpenEdit}
+            onSetDefault={handleSetDefault}
+            onDeleteClick={handleDeleteProvider}
+            onTestConnection={handleTestConnection}
+            testingProviderId={testingProviderId}
+          />
+        </TabsContent>
 
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="bb-token" className="font-semibold text-foreground">
-                    Personal Access Token (PAT)
-                  </label>
-                </div>
-                <div className="relative">
-                  <Input
-                    id="bb-token"
-                    type={showBbToken ? "text" : "password"}
-                    value={bbToken}
-                    onChange={(e) => setBbToken(e.target.value)}
-                    placeholder="Masukkan Personal Access Token Bitbucket..."
-                    className="font-mono text-xs h-9 pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowBbToken(!showBbToken)}
-                    className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
-                    title={showBbToken ? "Sembunyikan" : "Tampilkan"}
-                  >
-                    {showBbToken ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                  </button>
-                </div>
-              </div>
+        {/* Tab 2: Bitbucket Server Settings */}
+        <TabsContent value="bitbucket" className="space-y-4">
+          <BitbucketSettingsCard
+            initialUrl={bbUrl}
+            initialToken={bbToken}
+            initialSeniorSlug={bbSeniorSlug}
+            onSaveSuccess={loadSettings}
+          />
+        </TabsContent>
 
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="bb-senior-slug"
-                  className="font-semibold text-foreground flex items-center justify-between"
-                >
-                  <span>Reviewer User Slug</span>
-                </label>
-                <Input
-                  id="bb-senior-slug"
-                  value={bbSeniorSlug}
-                  onChange={(e) => setBbSeniorSlug(e.target.value)}
-                  placeholder="senior.lead"
-                  className="font-mono text-xs h-9"
-                />
-              </div>
-            </CardContent>
-          </div>
+        {/* Tab 3: Diff Filtering Rules */}
+        <TabsContent value="diff" className="space-y-4">
+          <DiffFilterCard />
+        </TabsContent>
+      </Tabs>
 
-          <div className="p-4 pt-0 flex items-center gap-2">
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleSaveBitbucket}
-              disabled={isSavingBb}
-              className="flex-1 gap-1.5 text-xs font-semibold"
-            >
-              <Save className={`size-3.5 ${isSavingBb ? "animate-spin" : ""}`} />
-              {isSavingBb ? "Menyimpan ke DB..." : "Simpan Konfigurasi Bitbucket"}
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={testBitbucketConnection}
-              disabled={isTestingBb}
-              className="gap-1.5 text-xs font-medium"
-            >
-              <RefreshCw className={`size-3.5 ${isTestingBb ? "animate-spin" : ""}`} />
-              {isTestingBb ? "Menguji..." : "Uji Koneksi"}
-            </Button>
-          </div>
-        </Card>
-
-        {/* OpenAI SDK / Qodeer Gateway Dynamic Settings Card */}
-        <Card className="shadow-xs border flex flex-col justify-between">
-          <div>
-            <CardHeader className="pb-3 border-b bg-muted/20">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Bot className="size-4 text-indigo-500" />
-                  <CardTitle className="text-base font-semibold">OpenAI SDK</CardTitle>
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent className="p-4 space-y-4 text-xs">
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="ai-base-url"
-                  className="font-semibold text-foreground flex items-center justify-between"
-                >
-                  <span>Custom Base URL (OpenAI Client)</span>
-                </label>
-                <Input
-                  id="ai-base-url"
-                  value={aiBaseUrl}
-                  onChange={(e) => setAiBaseUrl(e.target.value)}
-                  placeholder="https://organization.api-github.com/v1"
-                  className="font-mono text-xs h-9"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="ai-api-key" className="font-semibold text-foreground">
-                    API Key / Token Otentikasi
-                  </label>
-                </div>
-                <div className="relative">
-                  <Input
-                    id="ai-api-key"
-                    type={showAiKey ? "text" : "password"}
-                    value={aiApiKey}
-                    onChange={(e) => setAiApiKey(e.target.value)}
-                    placeholder="Masukkan API Key..."
-                    className="font-mono text-xs h-9 pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowAiKey(!showAiKey)}
-                    className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
-                    title={showAiKey ? "Sembunyikan" : "Tampilkan"}
-                  >
-                    {showAiKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label htmlFor="ai-model" className="font-semibold text-foreground flex items-center justify-between">
-                  <span>Model Identifier</span>
-                </label>
-                <Input
-                  id="ai-model"
-                  value={aiModel}
-                  onChange={(e) => setAiModel(e.target.value)}
-                  placeholder="deepseek-flash"
-                  className="font-mono text-xs h-9"
-                />
-              </div>
-            </CardContent>
-          </div>
-
-          <div className="p-4 pt-0 flex items-center gap-2">
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleSaveAi}
-              disabled={isSavingAi}
-              className="flex-1 gap-1.5 text-xs font-semibold"
-            >
-              <Save className={`size-3.5 ${isSavingAi ? "animate-spin" : ""}`} />
-              {isSavingAi ? "Menyimpan ke DB..." : "Simpan Konfigurasi AI"}
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={testAiConnection}
-              disabled={isTestingAi}
-              className="gap-1.5 text-xs font-medium"
-            >
-              <Cpu className={`size-3.5 text-indigo-500 ${isTestingAi ? "animate-spin" : ""}`} />
-              {isTestingAi ? "Menguji..." : "Uji Koneksi AI"}
-            </Button>
-          </div>
-        </Card>
-      </div>
-
-      {/* Auto-Filtering Rules Card (BR-02 & BR-10) */}
-      <Card className="shadow-xs border">
-        <CardHeader className="pb-3 border-b bg-muted/20">
-          <div className="flex items-center gap-2">
-            <Filter className="size-4 text-primary" />
-            <CardTitle className="text-base font-semibold">
-              Kebijakan Diff Filtering & Token Optimization (BR-02 & BR-10)
-            </CardTitle>
-          </div>
-          <CardDescription className="text-xs">
-            File yang otomatis dikecualikan dari prompt AI untuk mencegah pemborosan token dan noise review.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-4 space-y-3 text-xs">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="rounded border bg-muted/40 p-3 space-y-1">
-              <span className="font-semibold text-foreground block">Package & Lockfiles:</span>
-              <p className="text-muted-foreground font-mono text-[11px]">
-                *-lock.yaml, package-lock.json, yarn.lock, Cargo.lock, go.sum
-              </p>
-            </div>
-
-            <div className="rounded border bg-muted/40 p-3 space-y-1">
-              <span className="font-semibold text-foreground block">Minified & Generated:</span>
-              <p className="text-muted-foreground font-mono text-[11px]">
-                *.min.js, *.min.css, *.map, dist/**, .next/**, vendor/**
-              </p>
-            </div>
-
-            <div className="rounded border bg-muted/40 p-3 space-y-1">
-              <span className="font-semibold text-foreground block">Asset Media & Font:</span>
-              <p className="text-muted-foreground font-mono text-[11px]">
-                *.png, *.jpg, *.jpeg, *.svg, *.webp, *.woff, *.woff2, *.ico
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded bg-primary/5 border border-primary/10 p-3 text-[11px] text-muted-foreground">
-            <strong>Batas Partisi Diff (BR-10):</strong> Jika diff melebihi 30.000 token atau 100 KB, sistem otomatis
-            membagi partisi per file (chunking) untuk menjamin stabilitas LLM context window.
-          </div>
-        </CardContent>
-      </Card>
+      {/* Add / Edit AI Provider Modal */}
+      <AiProviderModal
+        open={isModalOpen}
+        onOpenChange={setIsModalOpen}
+        providerToEdit={providerToEdit}
+        onSave={handleSaveProvider}
+      />
     </div>
   );
 }

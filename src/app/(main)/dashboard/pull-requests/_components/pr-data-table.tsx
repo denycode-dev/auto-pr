@@ -12,19 +12,19 @@ import {
   DownloadCloud,
   Filter,
   GitBranch,
-  RefreshCw,
+  RotateCcw,
   Search,
   XCircle,
 } from "lucide-react";
 
+import { DashboardEmptyState } from "@/app/(main)/dashboard/_components/dashboard-empty-state";
+import { dashboardTableStyles } from "@/app/(main)/dashboard/_components/dashboard-table-styles";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { PullRequest, Repository, SeniorDecision } from "@/data/code-review/types";
 
 export interface PrDataTableProps {
@@ -43,11 +43,11 @@ function normalizeSeniorDecision(decision?: string | null): SeniorDecision {
 export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTableProps = {}) {
   const [prs, setPrs] = React.useState<PullRequest[]>([]);
   const [repositories, setRepositories] = React.useState<Repository[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  const [_loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedRepo, setSelectedRepo] = React.useState("ALL");
   const [selectedRecommendation, setSelectedRecommendation] = React.useState("ALL");
-  const [activeTab, setActiveTab] = React.useState("PENDING");
+  const [selectedDecision, setSelectedDecision] = React.useState("ALL");
 
   const fetchData = React.useCallback(async () => {
     try {
@@ -94,12 +94,16 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
     return prs.filter((pr) => {
       const decision = normalizeSeniorDecision(pr.seniorDecision);
 
-      // Tab filter
-      if (activeTab === "PENDING" && decision !== "PENDING") return false;
-      if (activeTab === "NEEDS_WORK" && decision !== "NEEDS_WORK" && pr.aiRecommendation !== "RECOMMENDED_NEEDS_WORK")
+      // Decision filter
+      if (selectedDecision === "PENDING" && decision !== "PENDING") return false;
+      if (
+        selectedDecision === "NEEDS_WORK" &&
+        decision !== "NEEDS_WORK" &&
+        pr.aiRecommendation !== "RECOMMENDED_NEEDS_WORK"
+      )
         return false;
-      if (activeTab === "APPROVED" && decision !== "APPROVED") return false;
-      if (activeTab === "DECLINED" && decision !== "DECLINED") return false;
+      if (selectedDecision === "APPROVED" && decision !== "APPROVED") return false;
+      if (selectedDecision === "DECLINED" && decision !== "DECLINED") return false;
 
       // Repo filter
       if (selectedRepo !== "ALL" && pr.repositorySlug !== selectedRepo) return false;
@@ -119,7 +123,7 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
 
       return true;
     });
-  }, [prs, activeTab, selectedRepo, selectedRecommendation, searchQuery]);
+  }, [prs, selectedDecision, selectedRepo, selectedRecommendation, searchQuery]);
 
   const counts = React.useMemo(() => {
     return {
@@ -134,334 +138,390 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
     };
   }, [prs]);
 
+  const hasActiveFilters = Boolean(
+    searchQuery || selectedRepo !== "ALL" || selectedRecommendation !== "ALL" || selectedDecision !== "ALL",
+  );
+
+  const handleResetFilters = () => {
+    setSearchQuery("");
+    setSelectedRepo("ALL");
+    setSelectedRecommendation("ALL");
+    setSelectedDecision("ALL");
+  };
+
   return (
     <div className="flex flex-col gap-4">
-      {/* Search & Filter Bar */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <InputGroup className="w-full lg:max-w-md">
-          <InputGroupAddon>
-            <Search className="size-4" />
-          </InputGroupAddon>
-          <InputGroupInput
-            placeholder="Cari PR berdasarkan judul, author, branch, atau #ID..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </InputGroup>
+      {/* Search & Filter Toolbar */}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+          <div className="flex flex-1 flex-wrap items-center gap-2.5">
+            <div className="w-full sm:w-64 lg:w-72">
+              <InputGroup className="w-full">
+                <InputGroupAddon>
+                  <Search className="size-3.5" />
+                </InputGroupAddon>
+                <InputGroupInput
+                  placeholder="Cari judul, author, branch, #ID..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </InputGroup>
+            </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" className="h-9 gap-1 text-xs" onClick={fetchData} disabled={loading}>
-            <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
-
-          <Select value={selectedRepo} onValueChange={setSelectedRepo}>
-            <SelectTrigger className="h-9 w-[180px] text-xs">
-              <Filter className="mr-1 size-3.5 text-muted-foreground" />
-              <SelectValue placeholder="Semua Repositori" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Semua Repositori</SelectItem>
-              {repositories.map((repo) => (
-                <SelectItem key={repo.slug} value={repo.slug}>
-                  {repo.projectKey} / {repo.slug}
+            {/* Decision Filter Dropdown */}
+            <Select value={selectedDecision} onValueChange={setSelectedDecision}>
+              <SelectTrigger className="h-9 w-[190px] text-xs">
+                <SelectValue placeholder="Keputusan Senior" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL" className="text-xs">
+                  Semua Keputusan ({counts.all})
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                <SelectItem value="PENDING" className="text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="size-3 text-amber-500" />
+                    <span>Menunggu ({counts.pending})</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="NEEDS_WORK" className="text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <AlertTriangle className="size-3 text-amber-500" />
+                    <span>Perlu Revisi ({counts.needsWork})</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="APPROVED" className="text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="size-3 text-emerald-500" />
+                    <span>Disetujui ({counts.approved})</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="DECLINED" className="text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <XCircle className="size-3 text-rose-500" />
+                    <span>Ditolak ({counts.declined})</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
 
-          <Select value={selectedRecommendation} onValueChange={setSelectedRecommendation}>
-            <SelectTrigger className="h-9 w-[190px] text-xs">
-              <SelectValue placeholder="Rekomendasi AI" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Semua Rekomendasi</SelectItem>
-              <SelectItem value="RECOMMENDED_APPROVE">Disarankan Approve</SelectItem>
-              <SelectItem value="RECOMMENDED_NEEDS_WORK">Disarankan Needs Work</SelectItem>
-              <SelectItem value="RECOMMENDED_DECLINE">Disarankan Decline</SelectItem>
-            </SelectContent>
-          </Select>
+            {/* Recommendation Filter Dropdown */}
+            <Select value={selectedRecommendation} onValueChange={setSelectedRecommendation}>
+              <SelectTrigger className="h-9 w-[180px] text-xs">
+                <SelectValue placeholder="Rekomendasi AI" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL" className="text-xs">
+                  Semua Rekomendasi
+                </SelectItem>
+                <SelectItem value="RECOMMENDED_APPROVE" className="text-xs">
+                  Disarankan Approve
+                </SelectItem>
+                <SelectItem value="RECOMMENDED_NEEDS_WORK" className="text-xs">
+                  Disarankan Needs Work
+                </SelectItem>
+                <SelectItem value="RECOMMENDED_DECLINE" className="text-xs">
+                  Disarankan Decline
+                </SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Repository Filter Dropdown */}
+            <Select value={selectedRepo} onValueChange={setSelectedRepo}>
+              <SelectTrigger className="h-9 w-[180px] text-xs">
+                <Filter className="mr-1 size-3.5 text-muted-foreground" />
+                <SelectValue placeholder="Semua Repositori" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL" className="text-xs">
+                  Semua Repositori
+                </SelectItem>
+                {repositories.map((repo) => (
+                  <SelectItem key={repo.slug} value={repo.slug} className="text-xs">
+                    {repo.projectKey} / {repo.slug}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Right Action & Info */}
+          <div className="flex shrink-0 items-center gap-2 self-end lg:self-center">
+            <span className="font-mono text-muted-foreground text-xs">{filteredPrs.length} PR ditemukan</span>
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleResetFilters}
+                className="h-8 gap-1 px-2 text-muted-foreground text-xs hover:text-foreground"
+                title="Reset semua filter"
+              >
+                <RotateCcw className="size-3" />
+                Reset Filter
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Tabs Filter */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full overflow-hidden">
-        <TabsList className="h-9 w-full justify-start overflow-x-auto overflow-y-hidden bg-muted/60 p-0.5">
-          <TabsTrigger value="PENDING" className="gap-1.5 px-3 text-xs">
-            <Clock className="size-3 text-amber-500" />
-            Menunggu Keputusan
-            <Badge
-              variant="secondary"
-              className="bg-amber-500/15 px-1.5 py-0 font-mono text-[10px] text-amber-700 dark:text-amber-300"
-            >
-              {counts.pending}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="NEEDS_WORK" className="gap-1.5 px-3 text-xs">
-            <AlertTriangle className="size-3 text-amber-500" />
-            Perlu Revisi
-            <Badge variant="secondary" className="px-1.5 py-0 font-mono text-[10px]">
-              {counts.needsWork}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="APPROVED" className="gap-1.5 px-3 text-xs">
-            <CheckCircle2 className="size-3 text-emerald-500" />
-            Disetujui
-            <Badge variant="secondary" className="px-1.5 py-0 font-mono text-[10px]">
-              {counts.approved}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="DECLINED" className="gap-1.5 px-3 text-xs">
-            <XCircle className="size-3 text-rose-500" />
-            Ditolak
-            <Badge variant="secondary" className="px-1.5 py-0 font-mono text-[10px]">
-              {counts.declined}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="ALL" className="gap-1.5 px-3 text-xs">
-            Semua PR
-            <Badge variant="secondary" className="px-1.5 py-0 font-mono text-[10px]">
-              {counts.all}
-            </Badge>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      {/* Table Card */}
-      <Card className="overflow-hidden shadow-xs">
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-muted/40">
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[80px] font-semibold text-xs">PR ID</TableHead>
-                  <TableHead className="min-w-[280px] font-semibold text-xs">Pull Request & Author</TableHead>
-                  <TableHead className="min-w-[190px] font-semibold text-xs">Repo & Branches</TableHead>
-                  <TableHead className="font-semibold text-xs">Rekomendasi AI</TableHead>
-                  <TableHead className="font-semibold text-xs">Status Senior</TableHead>
-                  <TableHead className="text-center font-semibold text-xs">Temuan Isu</TableHead>
-                  <TableHead className="text-center font-semibold text-xs">Skor SOP</TableHead>
-                  <TableHead className="pr-4 text-right font-semibold text-xs">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {prs.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="py-16 text-center">
-                      <div className="mx-auto flex max-w-md flex-col items-center justify-center gap-3">
-                        <div className="rounded-full border border-indigo-200 bg-indigo-50 p-3.5 text-indigo-600 shadow-2xs dark:border-indigo-800/40 dark:bg-indigo-950/50 dark:text-indigo-400">
-                          <DownloadCloud className="size-6" />
-                        </div>
-                        <div className="space-y-1">
-                          <h3 className="font-semibold text-base text-foreground">Antrean Pull Request Kosong</h3>
-                          <p className="text-muted-foreground text-xs leading-relaxed">
-                            Belum ada pull request yang terdaftar di database lokal. Tarik pull request yang sedang
-                            aktif langsung dari Bitbucket Server 8.19.
-                          </p>
-                        </div>
-                        {onOpenSyncDialog && (
-                          <Button
-                            size="sm"
-                            onClick={onOpenSyncDialog}
-                            className="mt-2 gap-2 bg-indigo-600 font-semibold text-white text-xs shadow-xs hover:bg-indigo-700"
-                          >
-                            <DownloadCloud className="size-3.5" />
-                            Tarik PR dari Bitbucket
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : filteredPrs.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="py-12 text-center text-muted-foreground text-sm">
-                      <p className="font-medium text-foreground text-xs">Tidak ada hasil yang cocok</p>
-                      <p className="pt-1 text-muted-foreground text-xs">
-                        Coba sesuaikan kata kunci pencarian atau filter status yang dipilih.
-                      </p>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredPrs.map((pr) => {
-                    const isNeedsWork = pr.aiRecommendation === "RECOMMENDED_NEEDS_WORK";
-                    const isApprove = pr.aiRecommendation === "RECOMMENDED_APPROVE";
-                    const isDecline = pr.aiRecommendation === "RECOMMENDED_DECLINE";
-
-                    return (
-                      <TableRow key={pr.id} className="hover:bg-muted/20">
-                        <TableCell className="font-mono font-semibold text-primary text-xs">
-                          #{pr.bitbucketPrId}
-                        </TableCell>
-
-                        <TableCell>
-                          <div className="flex items-start gap-2.5">
-                            <Avatar className="mt-0.5 size-6 shrink-0 border border-border">
-                              {pr.authorAvatar && <AvatarImage src={pr.authorAvatar} />}
-                              <AvatarFallback className="text-[10px]">
-                                {pr.authorName.slice(0, 2).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex flex-col gap-0.5">
-                              <Link
-                                href={`/dashboard/pull-requests/${pr.id}`}
-                                className="line-clamp-1 font-medium text-foreground text-xs transition-colors hover:text-primary"
+      {/* Table Container */}
+      <div className="overflow-hidden rounded-lg border bg-card shadow-xs">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className="bg-muted/20">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className={`w-[85px] ${dashboardTableStyles.th}`}>PR ID</TableHead>
+                <TableHead className={`min-w-[280px] ${dashboardTableStyles.th}`}>Pull Request & Author</TableHead>
+                <TableHead className={`min-w-[190px] ${dashboardTableStyles.th}`}>Repo & Branches</TableHead>
+                <TableHead className={`w-[150px] ${dashboardTableStyles.th}`}>Rekomendasi AI</TableHead>
+                <TableHead className={`w-[130px] ${dashboardTableStyles.th}`}>Status Senior</TableHead>
+                <TableHead className={`w-[120px] ${dashboardTableStyles.th}`}>Temuan Isu</TableHead>
+                <TableHead className={`w-[100px] ${dashboardTableStyles.th}`}>Skor SOP</TableHead>
+                <TableHead className={dashboardTableStyles.thStickyAction}>Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(() => {
+                if (prs.length === 0) {
+                  return (
+                    <TableRow>
+                      <TableCell colSpan={8} className="p-0">
+                        <DashboardEmptyState
+                          icon={DownloadCloud}
+                          title="Antrean Pull Request Kosong"
+                          description="Belum ada pull request yang terdaftar di database lokal. Tarik pull request yang sedang aktif langsung dari Bitbucket Server 8.19."
+                          action={
+                            onOpenSyncDialog && (
+                              <Button
+                                size="sm"
+                                onClick={onOpenSyncDialog}
+                                className="gap-2 font-semibold text-xs shadow-xs"
                               >
-                                {pr.title}
-                              </Link>
-                              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                                <span>{pr.authorName}</span>
-                                <span>•</span>
-                                <span className="font-mono text-[10px] text-muted-foreground/80">
-                                  {pr.latestCommitHash.slice(0, 7)}
-                                </span>
-                              </div>
+                                <DownloadCloud className="size-3.5" />
+                                Tarik PR dari Bitbucket
+                              </Button>
+                            )
+                          }
+                        />
+                      </TableCell>
+                    </TableRow>
+                  );
+                }
+
+                if (filteredPrs.length === 0) {
+                  return (
+                    <TableRow>
+                      <TableCell colSpan={8} className="py-12 text-center text-muted-foreground text-sm">
+                        <p className="font-medium text-foreground text-xs">Tidak ada hasil yang cocok</p>
+                        <p className="pt-1 text-muted-foreground text-xs">
+                          Coba sesuaikan kata kunci pencarian atau filter status yang dipilih.
+                        </p>
+                      </TableCell>
+                    </TableRow>
+                  );
+                }
+
+                return filteredPrs.map((pr) => {
+                  const isNeedsWork = pr.aiRecommendation === "RECOMMENDED_NEEDS_WORK";
+                  const isApprove = pr.aiRecommendation === "RECOMMENDED_APPROVE";
+                  const isDecline = pr.aiRecommendation === "RECOMMENDED_DECLINE";
+
+                  return (
+                    <TableRow key={pr.id} className="hover:bg-muted/20">
+                      <TableCell className="font-mono font-semibold text-primary text-xs">
+                        #{pr.bitbucketPrId}
+                      </TableCell>
+
+                      <TableCell>
+                        <div className="flex items-start gap-2.5">
+                          <Avatar className="mt-0.5 size-6 shrink-0 border border-border">
+                            {pr.authorAvatar && <AvatarImage src={pr.authorAvatar} />}
+                            <AvatarFallback className="text-[10px]">
+                              {pr.authorName.slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex flex-col gap-0.5">
+                            <Link
+                              href={`/dashboard/pull-requests/${pr.id}`}
+                              className="line-clamp-1 font-medium text-foreground text-xs transition-colors hover:text-primary"
+                            >
+                              {pr.title}
+                            </Link>
+                            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                              <span>{pr.authorName}</span>
+                              <span>•</span>
+                              <span className="font-mono text-[10px] text-muted-foreground/80">
+                                {pr.latestCommitHash.slice(0, 7)}
+                              </span>
                             </div>
                           </div>
-                        </TableCell>
+                        </div>
+                      </TableCell>
 
-                        <TableCell>
-                          <div className="flex flex-col text-xs">
-                            <span className="font-medium font-mono text-foreground">
-                              {pr.projectKey} / {pr.repositorySlug}
-                            </span>
-                            <div className="flex items-center gap-1 pt-0.5 text-[10px] text-muted-foreground">
-                              <GitBranch className="size-3" />
-                              <span className="max-w-[100px] truncate font-mono">{pr.sourceBranch}</span>
-                              <span>→</span>
-                              <span className="font-mono">{pr.targetBranch}</span>
-                            </div>
+                      <TableCell>
+                        <div className="flex flex-col text-xs">
+                          <span className="font-medium font-mono text-foreground">
+                            {pr.projectKey} / {pr.repositorySlug}
+                          </span>
+                          <div className="flex items-center gap-1 pt-0.5 text-[10px] text-muted-foreground">
+                            <GitBranch className="size-3" />
+                            <span className="max-w-[100px] truncate font-mono">{pr.sourceBranch}</span>
+                            <span>→</span>
+                            <span className="font-mono">{pr.targetBranch}</span>
                           </div>
-                        </TableCell>
+                        </div>
+                      </TableCell>
 
-                        <TableCell>
-                          {pr.aiReviewStatus === "NOT_STARTED" ? (
-                            <Badge
-                              variant="outline"
-                              className="border-muted bg-muted/40 text-[11px] text-muted-foreground"
-                            >
-                              Belum Dianalisis
-                            </Badge>
-                          ) : pr.aiReviewStatus === "IN_PROGRESS" ? (
-                            <Badge
-                              variant="outline"
-                              className="animate-pulse border-primary/40 bg-primary/10 text-[11px] text-primary"
-                            >
-                              Sedang Dianalisis...
-                            </Badge>
-                          ) : isApprove ? (
-                            <Badge
-                              variant="outline"
-                              className="gap-1 border-emerald-500/30 bg-emerald-500/10 text-[11px] text-emerald-700 dark:text-emerald-400"
-                            >
-                              <CheckCircle2 className="size-3" />
-                              Approve
-                            </Badge>
-                          ) : isNeedsWork ? (
-                            <Badge
-                              variant="outline"
-                              className="gap-1 border-amber-500/30 bg-amber-500/10 text-[11px] text-amber-700 dark:text-amber-400"
-                            >
-                              <AlertTriangle className="size-3" />
-                              Needs Work
-                            </Badge>
-                          ) : isDecline ? (
-                            <Badge
-                              variant="outline"
-                              className="gap-1 border-rose-500/30 bg-rose-500/10 text-[11px] text-rose-700 dark:text-rose-400"
-                            >
-                              <XCircle className="size-3" />
-                              Decline
-                            </Badge>
-                          ) : (
+                      <TableCell>
+                        {(() => {
+                          if (pr.aiReviewStatus === "NOT_STARTED") {
+                            return (
+                              <Badge
+                                variant="outline"
+                                className="border-muted bg-muted/40 text-[11px] text-muted-foreground"
+                              >
+                                Belum Dianalisis
+                              </Badge>
+                            );
+                          }
+                          if (pr.aiReviewStatus === "IN_PROGRESS") {
+                            return (
+                              <Badge
+                                variant="outline"
+                                className="animate-pulse border-primary/40 bg-primary/10 text-[11px] text-primary"
+                              >
+                                Sedang Dianalisis...
+                              </Badge>
+                            );
+                          }
+                          if (isApprove) {
+                            return (
+                              <Badge
+                                variant="outline"
+                                className="gap-1 border-emerald-500/30 bg-emerald-500/10 text-[11px] text-emerald-700 dark:text-emerald-400"
+                              >
+                                <CheckCircle2 className="size-3" />
+                                Approve
+                              </Badge>
+                            );
+                          }
+                          if (isNeedsWork) {
+                            return (
+                              <Badge
+                                variant="outline"
+                                className="gap-1 border-amber-500/30 bg-amber-500/10 text-[11px] text-amber-700 dark:text-amber-400"
+                              >
+                                <AlertTriangle className="size-3" />
+                                Needs Work
+                              </Badge>
+                            );
+                          }
+                          if (isDecline) {
+                            return (
+                              <Badge
+                                variant="outline"
+                                className="gap-1 border-rose-500/30 bg-rose-500/10 text-[11px] text-rose-700 dark:text-rose-400"
+                              >
+                                <XCircle className="size-3" />
+                                Decline
+                              </Badge>
+                            );
+                          }
+                          return (
                             <Badge
                               variant="outline"
                               className="border-muted bg-muted/40 text-[11px] text-muted-foreground"
                             >
                               Selesai
                             </Badge>
-                          )}
-                        </TableCell>
+                          );
+                        })()}
+                      </TableCell>
 
-                        <TableCell>
-                          {(() => {
-                            const decision = normalizeSeniorDecision(pr.seniorDecision);
-                            if (decision === "APPROVED") {
-                              return <Badge className="bg-emerald-600 text-[11px] text-white">Approved</Badge>;
-                            }
-                            if (decision === "NEEDS_WORK") {
-                              return <Badge className="bg-amber-600 text-[11px] text-white">Needs Work</Badge>;
-                            }
-                            if (decision === "DECLINED") {
-                              return (
-                                <Badge variant="destructive" className="text-[11px]">
-                                  Declined
-                                </Badge>
-                              );
-                            }
+                      <TableCell>
+                        {(() => {
+                          const decision = normalizeSeniorDecision(pr.seniorDecision);
+                          if (decision === "APPROVED") {
+                            return <Badge className="bg-emerald-600 text-[11px] text-white">Approved</Badge>;
+                          }
+                          if (decision === "NEEDS_WORK") {
+                            return <Badge className="bg-amber-600 text-[11px] text-white">Needs Work</Badge>;
+                          }
+                          if (decision === "DECLINED") {
                             return (
-                              <Badge
-                                variant="outline"
-                                className="border-amber-500/40 text-[11px] text-amber-600 dark:text-amber-400"
-                              >
-                                Menunggu Keputusan
+                              <Badge variant="destructive" className="text-[11px]">
+                                Declined
                               </Badge>
                             );
-                          })()}
-                        </TableCell>
-
-                        <TableCell className="text-center font-mono text-xs">
-                          {pr.aiReviewStatus === "NOT_STARTED" ? (
-                            <span className="text-muted-foreground">-</span>
-                          ) : pr.criticalCount > 0 ? (
-                            <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
-                              {pr.criticalCount} Critical
-                            </Badge>
-                          ) : pr.highCount > 0 ? (
-                            <Badge className="h-5 border border-amber-500/30 bg-amber-500/15 px-1.5 text-[10px] text-amber-700 dark:text-amber-400">
-                              {pr.highCount} High
-                            </Badge>
-                          ) : pr.totalIssues > 0 ? (
-                            <span className="text-muted-foreground">{pr.totalIssues} temuan</span>
-                          ) : (
-                            <span className="font-medium text-emerald-600 dark:text-emerald-400">0 temuan</span>
-                          )}
-                        </TableCell>
-
-                        <TableCell className="text-center font-mono font-semibold text-xs">
-                          {pr.aiReviewStatus === "COMPLETED" && pr.sopScore > 0 ? (
-                            <span
-                              className={
-                                pr.sopScore >= 80
-                                  ? "text-emerald-600 dark:text-emerald-400"
-                                  : pr.sopScore >= 60
-                                    ? "text-amber-600 dark:text-amber-400"
-                                    : "text-rose-600 dark:text-rose-400"
-                              }
+                          }
+                          return (
+                            <Badge
+                              variant="outline"
+                              className="border-amber-500/40 text-[11px] text-amber-600 dark:text-amber-400"
                             >
-                              {pr.sopScore}%
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
+                              Menunggu Keputusan
+                            </Badge>
+                          );
+                        })()}
+                      </TableCell>
 
-                        <TableCell className="pr-4 text-right">
-                          <Button asChild size="sm" className="h-8 gap-1 text-xs shadow-xs">
-                            <Link href={`/dashboard/pull-requests/${pr.id}`}>
-                              Review
-                              <ArrowUpRight className="size-3.5" />
-                            </Link>
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                      <TableCell className="text-center font-mono text-xs">
+                        {(() => {
+                          if (pr.aiReviewStatus === "NOT_STARTED") {
+                            return <span className="text-muted-foreground">-</span>;
+                          }
+                          if (pr.criticalCount > 0) {
+                            return (
+                              <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
+                                {pr.criticalCount} Critical
+                              </Badge>
+                            );
+                          }
+                          if (pr.highCount > 0) {
+                            return (
+                              <Badge className="h-5 border border-amber-500/30 bg-amber-500/15 px-1.5 text-[10px] text-amber-700 dark:text-amber-400">
+                                {pr.highCount} High
+                              </Badge>
+                            );
+                          }
+                          if (pr.totalIssues > 0) {
+                            return <span className="text-muted-foreground">{pr.totalIssues} temuan</span>;
+                          }
+                          return <span className="font-medium text-emerald-600 dark:text-emerald-400">0 temuan</span>;
+                        })()}
+                      </TableCell>
+
+                      <TableCell className="text-center font-mono font-semibold text-xs">
+                        {(() => {
+                          if (pr.aiReviewStatus !== "COMPLETED" || pr.sopScore <= 0) {
+                            return <span className="text-muted-foreground">-</span>;
+                          }
+                          let scoreColor = "text-rose-600 dark:text-rose-400";
+                          if (pr.sopScore >= 80) {
+                            scoreColor = "text-emerald-600 dark:text-emerald-400";
+                          } else if (pr.sopScore >= 60) {
+                            scoreColor = "text-amber-600 dark:text-amber-400";
+                          }
+                          return <span className={scoreColor}>{pr.sopScore}%</span>;
+                        })()}
+                      </TableCell>
+
+                      <TableCell className={dashboardTableStyles.tdStickyAction}>
+                        <Button asChild size="sm" className="h-8 gap-1 font-semibold text-xs shadow-xs">
+                          <Link href={`/dashboard/pull-requests/${pr.id}`}>
+                            Review
+                            <ArrowUpRight className="size-3.5" />
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                });
+              })()}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
     </div>
   );
 }

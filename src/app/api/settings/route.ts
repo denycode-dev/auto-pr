@@ -6,6 +6,8 @@ import { getDynamicSystemConfig, saveDynamicSystemSettings } from "@/server/db/s
 export async function GET() {
   try {
     const dynamicConfig = await getDynamicSystemConfig();
+    const providers = dynamicConfig.aiProviders ?? [];
+    const defaultProvider = providers.find((p) => p.isDefault) ?? providers[0];
 
     const settingsConfig = {
       bitbucket: {
@@ -19,7 +21,11 @@ export async function GET() {
         apiKey: dynamicConfig.ai.apiKey,
         model: dynamicConfig.ai.model,
         hasApiKey: Boolean(dynamicConfig.ai.apiKey),
+        providerId: defaultProvider?.id,
+        providerName: defaultProvider?.name,
       },
+      aiProviders: providers,
+      defaultProviderId: defaultProvider?.id,
     };
 
     return apiSuccess(settingsConfig, "Pengaturan sistem dinamis berhasil dimuat");
@@ -32,7 +38,11 @@ export async function GET() {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const updated = await saveDynamicSystemSettings(body);
+    const payload = {
+      ...body,
+      ai_providers: body.aiProviders ?? body.ai_providers,
+    };
+    const updated = await saveDynamicSystemSettings(payload);
     return apiSuccess(updated, "Pengaturan sistem berhasil disimpan ke database");
   } catch (error) {
     console.error("[API PUT /settings error]:", error);
@@ -145,6 +155,33 @@ export async function POST(req: NextRequest) {
             status: "OK",
             message: `Terhubung ke AI Gateway (${baseUrl}) dengan model '${model}'.`,
           });
+        }
+
+        // If /models returned 404 or 405, some OpenAI proxies only expose /chat/completions
+        if (res.status === 404 || res.status === 405) {
+          try {
+            const chatRes = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                model,
+                messages: [{ role: "user", content: "ping" }],
+                max_tokens: 1,
+              }),
+            });
+            if (chatRes.ok || chatRes.status === 400) {
+              return apiSuccess({
+                target,
+                status: "OK",
+                message: `Terhubung ke AI Gateway (${baseUrl}) dengan model '${model}'.`,
+              });
+            }
+          } catch {
+            // Ignore fallback error and use original error response
+          }
         }
 
         const errText = await res.text().catch(() => "");

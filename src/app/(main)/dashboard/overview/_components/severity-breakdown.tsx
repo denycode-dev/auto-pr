@@ -2,18 +2,40 @@
 
 import * as React from "react";
 
-import { AlertCircle, AlertTriangle, Info, Shield } from "lucide-react";
+import Link from "next/link";
+
+import { cn } from "cn";
+import { AlertCircle, AlertTriangle, ArrowUpRight, Code2, Info, ShieldAlert } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+interface ReviewIssueItem {
+  id: string;
+  title: string;
+  filePath: string;
+  lineNumber: number;
+  severity: string;
+  category: string;
+  createdAt: string;
+  prId: string;
+  prBitbucketId: number;
+  prTitle: string;
+  repoSlug: string;
+}
+
+interface SeverityCount {
+  severity: string;
+  count: number;
+}
 
 export function SeverityBreakdown() {
-  const [breakdown, setBreakdown] = React.useState<{
-    critical: number;
-    high: number;
-    medium: number;
-    low: number;
-  }>({ critical: 0, high: 0, medium: 0, low: 0 });
+  const [issues, setIssues] = React.useState<ReviewIssueItem[]>([]);
+  const [breakdown, setBreakdown] = React.useState<SeverityCount[]>([]);
+  const [totalIssues, setTotalIssues] = React.useState<number>(0);
+  const [selectedSeverity, setSelectedSeverity] = React.useState<string>("ALL");
+  const [loading, setLoading] = React.useState<boolean>(true);
 
   React.useEffect(() => {
     fetch("/api/overview")
@@ -22,113 +44,190 @@ export function SeverityBreakdown() {
         return res.json();
       })
       .then((res) => {
-        if (res.success && res.data?.severityBreakdown) {
-          const list = res.data.severityBreakdown as Array<{ severity: string; count: number }>;
-          const critical = list.find((i) => i.severity === "CRITICAL")?.count ?? 0;
-          const high = list.find((i) => i.severity === "HIGH")?.count ?? 0;
-          const medium = list.find((i) => i.severity === "MEDIUM")?.count ?? 0;
-          const low = list.find((i) => i.severity === "LOW")?.count ?? 0;
-          setBreakdown({ critical, high, medium, low });
+        if (res.success && res.data) {
+          if (Array.isArray(res.data.recentIssues)) {
+            setIssues(res.data.recentIssues);
+          }
+          if (Array.isArray(res.data.severityBreakdown)) {
+            setBreakdown(res.data.severityBreakdown);
+          }
+          setTotalIssues(res.data.metrics?.totalIssuesCount ?? 0);
         }
       })
       .catch((err) => {
-        console.error("Gagal mengambil rincian severity:", err);
+        console.error("Gagal mengambil temuan isu:", err);
+      })
+      .finally(() => {
+        setLoading(false);
       });
   }, []);
 
-  const total = breakdown.critical + breakdown.high + breakdown.medium + breakdown.low;
+  const getSeverityBadge = (severity: string) => {
+    const sev = severity.toUpperCase();
+    if (sev === "CRITICAL") {
+      return (
+        <Badge variant="destructive" className="h-5 gap-1 px-1.5 font-semibold text-[10px]">
+          <ShieldAlert className="size-3" />
+          Critical
+        </Badge>
+      );
+    }
+    if (sev === "HIGH") {
+      return (
+        <Badge className="h-5 gap-1 border border-amber-500/30 bg-amber-500/15 px-1.5 font-semibold text-[10px] text-amber-700 dark:text-amber-400">
+          <AlertTriangle className="size-3 text-amber-500" />
+          High
+        </Badge>
+      );
+    }
+    if (sev === "MEDIUM") {
+      return (
+        <Badge className="h-5 gap-1 border border-indigo-500/30 bg-indigo-500/15 px-1.5 font-semibold text-[10px] text-indigo-700 dark:text-indigo-400">
+          <AlertCircle className="size-3 text-indigo-500" />
+          Medium
+        </Badge>
+      );
+    }
+    if (sev === "LOW") {
+      return (
+        <Badge className="h-5 gap-1 border border-blue-500/30 bg-blue-500/15 px-1.5 font-semibold text-[10px] text-blue-700 dark:text-blue-400">
+          <Info className="size-3 text-blue-500" />
+          Low
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="secondary" className="h-5 gap-1 px-1.5 font-semibold text-[10px]">
+        <Info className="size-3" />
+        Info
+      </Badge>
+    );
+  };
 
-  const severityItems = [
-    {
-      name: "Critical Issues",
-      description: "Celah keamanan fatal (SQLi, Auth Bypass, RCE)",
-      count: breakdown.critical,
-      icon: Shield,
-      color: "text-rose-500",
-      badgeVariant: "destructive" as const,
-    },
-    {
-      name: "High Severity",
-      description: "Bug logika, unhandled error, memory leak risiko tinggi",
-      count: breakdown.high,
-      icon: AlertTriangle,
-      color: "text-amber-500",
-      customBadge: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30",
-    },
-    {
-      name: "Medium Severity",
-      description: "Pelanggaran arsitektur SOP, query N+1, styling lint",
-      count: breakdown.medium,
-      icon: AlertCircle,
-      color: "text-indigo-500",
-      customBadge: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-400 border-indigo-500/30",
-    },
-    {
-      name: "Low / Best Practices",
-      description: "Dokumentasi kode, saran refactoring minor, konsistensi",
-      count: breakdown.low,
-      icon: Info,
-      color: "text-blue-500",
-      customBadge: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30",
-    },
+  const getCount = (sev: string) => {
+    return breakdown.find((b) => b.severity === sev)?.count ?? 0;
+  };
+
+  const filterOptions = [
+    { value: "ALL", label: "Semua", count: totalIssues },
+    { value: "HIGH", label: "High", count: getCount("HIGH") },
+    { value: "MEDIUM", label: "Medium", count: getCount("MEDIUM") },
+    { value: "LOW", label: "Low", count: getCount("LOW") },
   ];
 
-  return (
-    <Card className="shadow-xs border border-border/80">
-      <CardHeader className="pb-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
-          <div className="space-y-0.5 min-w-0">
-            <CardTitle className="text-base font-semibold">Temuan Berdasarkan Tingkat Keparahan</CardTitle>
-            <CardDescription className="text-xs">
-              Klasifikasi otomatis issue kode sesuai Aturan Bisnis BR-06
-            </CardDescription>
+  const filteredIssues = React.useMemo(() => {
+    if (selectedSeverity === "ALL") return issues;
+    return issues.filter((i) => i.severity.toUpperCase() === selectedSeverity);
+  }, [issues, selectedSeverity]);
+
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="space-y-3 py-4">
+          <div className="h-10 animate-pulse rounded-md bg-muted/40" />
+          <div className="h-10 animate-pulse rounded-md bg-muted/40" />
+          <div className="h-10 animate-pulse rounded-md bg-muted/40" />
+        </div>
+      );
+    }
+
+    if (filteredIssues.length === 0) {
+      return (
+        <div className="py-8 text-center text-muted-foreground text-xs">
+          Tidak ada temuan isu untuk kategori keparahan ini.
+        </div>
+      );
+    }
+
+    return (
+      <div className="max-h-[310px] divide-y divide-border/60 overflow-y-auto pr-1">
+        {filteredIssues.map((item) => (
+          <div
+            key={item.id}
+            className="group flex items-center justify-between gap-2.5 py-2.5 text-xs first:pt-0 last:pb-0"
+          >
+            <div className="flex min-w-0 flex-1 items-start gap-2.5">
+              <div className="mt-0.5 shrink-0">{getSeverityBadge(item.severity)}</div>
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <Link
+                  href={`/dashboard/pull-requests/${item.prId}`}
+                  className="truncate font-medium text-foreground transition-colors hover:text-primary hover:underline"
+                  title={item.title}
+                >
+                  {item.title}
+                </Link>
+                <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
+                  <Code2 className="size-3 shrink-0 opacity-70" />
+                  <span className="max-w-[220px] truncate" title={item.filePath}>
+                    {item.filePath.split("/").slice(-2).join("/")}:{item.lineNumber}
+                  </span>
+                  <span>•</span>
+                  <span className="text-muted-foreground/80">PR #{item.prBitbucketId}</span>
+                </div>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 shrink-0 text-muted-foreground transition-colors hover:text-foreground group-hover:bg-muted"
+              asChild
+            >
+              <Link href={`/dashboard/pull-requests/${item.prId}`} title={`Buka PR #${item.prBitbucketId}`}>
+                <ArrowUpRight className="size-3.5" />
+                <span className="sr-only">Buka PR #{item.prBitbucketId}</span>
+              </Link>
+            </Button>
           </div>
-          <Badge variant="outline" className="text-xs font-mono shrink-0 whitespace-nowrap self-start sm:self-center">
-            {total} Total Isu
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <Card className="border border-border/80 shadow-xs">
+      <CardHeader className="flex flex-col gap-2.5 pb-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 space-y-0.5">
+          <CardTitle className="font-semibold text-base">Temuan Berdasarkan Tingkat Keparahan</CardTitle>
+        </div>
+        <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
+          <Badge variant="outline" className="whitespace-nowrap font-mono text-xs">
+            {totalIssues} Total Isu
           </Badge>
         </div>
       </CardHeader>
-      <CardContent>
-        {total === 0 ? (
-          <div className="py-10 text-center text-xs text-muted-foreground">
-            Belum ada temuan isu kode pada database.
-          </div>
-        ) : (
-          <div className="divide-y divide-border/60">
-            {severityItems.map((item) => (
-              <div
-                key={item.name}
-                className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0 text-xs gap-2"
+      <CardContent className="space-y-3">
+        {/* Quick Filter Tabs */}
+        <div className="flex flex-wrap items-center gap-1.5 border-border/50 border-b pb-2.5">
+          {filterOptions.map((opt) => {
+            const isActive = selectedSeverity === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setSelectedSeverity(opt.value)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md px-2.5 py-1 font-medium text-xs transition-colors",
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-2xs"
+                    : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
               >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <item.icon className={`size-4 shrink-0 ${item.color}`} />
-                  <div className="flex flex-col">
-                    <span className="font-medium text-foreground truncate">{item.name}</span>
-                    <span className="text-[11px] text-muted-foreground truncate">{item.description}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 font-mono shrink-0">
-                  {item.count > 0 ? (
-                    item.badgeVariant ? (
-                      <Badge
-                        variant={item.badgeVariant}
-                        className="h-5 px-1.5 text-[10px] font-semibold whitespace-nowrap"
-                      >
-                        {item.count} Isu
-                      </Badge>
-                    ) : (
-                      <Badge className={`h-5 px-1.5 text-[10px] font-semibold border ${item.customBadge}`}>
-                        {item.count} Isu
-                      </Badge>
-                    )
-                  ) : (
-                    <span className="text-muted-foreground text-xs font-mono">0 isu</span>
+                <span>{opt.label}</span>
+                <span
+                  className={cn(
+                    "font-mono text-[10px]",
+                    isActive ? "text-primary-foreground/80" : "text-muted-foreground",
                   )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+                >
+                  ({opt.count})
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Content List */}
+        {renderContent()}
       </CardContent>
     </Card>
   );

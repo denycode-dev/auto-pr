@@ -1,6 +1,8 @@
 import { apiError, apiSuccess } from "@/lib/api-response";
 import prisma from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const [
@@ -15,6 +17,8 @@ export async function GET() {
       recApprove,
       recNeedsWork,
       recDecline,
+      severityGroups,
+      rawIssues,
     ] = await Promise.all([
       prisma.pullRequest.count(),
       prisma.pullRequest.count({ where: { prStatus: "OPEN" } }),
@@ -24,10 +28,6 @@ export async function GET() {
       prisma.pullRequest.count({ where: { seniorDecision: { in: ["DECLINED", "DECLINE"] } } }),
       prisma.reviewRun.findMany({
         select: {
-          criticalCount: true,
-          highCount: true,
-          mediumCount: true,
-          lowCount: true,
           sopScore: true,
         },
       }),
@@ -46,27 +46,62 @@ export async function GET() {
       prisma.pullRequest.count({ where: { aiRecommendation: "RECOMMENDED_APPROVE" } }),
       prisma.pullRequest.count({ where: { aiRecommendation: "RECOMMENDED_NEEDS_WORK" } }),
       prisma.pullRequest.count({ where: { aiRecommendation: "RECOMMENDED_DECLINE" } }),
+      prisma.reviewIssue.groupBy({
+        by: ["severity"],
+        _count: { id: true },
+        where: { isFalsePositive: false },
+      }),
+      prisma.reviewIssue.findMany({
+        where: { isFalsePositive: false },
+        select: {
+          id: true,
+          title: true,
+          filePath: true,
+          lineNumber: true,
+          severity: true,
+          category: true,
+          createdAt: true,
+          reviewRun: {
+            select: {
+              pullRequest: {
+                select: {
+                  id: true,
+                  bitbucketPrId: true,
+                  title: true,
+                  repository: {
+                    select: {
+                      slug: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
     ]);
 
     // Calculate aggregated metrics from real database rows
     const decidedCount = approvedPrs + needsWorkPrs + declinedPrs;
     const approvalRate = decidedCount > 0 ? Math.round((approvedPrs / decidedCount) * 100) : 0;
 
-    let totalCritical = 0;
-    let totalHigh = 0;
-    let totalMedium = 0;
-    let totalLow = 0;
     let totalSopScore = 0;
-
     for (const run of reviewRuns) {
-      totalCritical += run.criticalCount;
-      totalHigh += run.highCount;
-      totalMedium += run.mediumCount;
-      totalLow += run.lowCount;
       totalSopScore += run.sopScore;
     }
-
     const avgSopScore = reviewRuns.length > 0 ? Math.round(totalSopScore / reviewRuns.length) : 0;
+
+    // Real severity count map from review_issues
+    const severityCountMap: Record<string, number> = {};
+    for (const group of severityGroups) {
+      severityCountMap[group.severity] = group._count.id;
+    }
+
+    const totalCritical = severityCountMap.CRITICAL || 0;
+    const totalHigh = severityCountMap.HIGH || 0;
+    const totalMedium = severityCountMap.MEDIUM || 0;
+    const totalLow = severityCountMap.LOW || 0;
+    const totalInfo = severityCountMap.INFO || 0;
 
     // Senior agreement rate with AI: PRs where senior decision matched AI recommendation
     const agreedPrs = await prisma.pullRequest.count({
@@ -94,7 +129,37 @@ export async function GET() {
       { severity: "HIGH", count: totalHigh, color: "bg-orange-500" },
       { severity: "MEDIUM", count: totalMedium, color: "bg-amber-500" },
       { severity: "LOW", count: totalLow, color: "bg-blue-500" },
+      { severity: "INFO", count: totalInfo, color: "bg-sky-500" },
     ];
+
+    const severityWeight: Record<string, number> = {
+      CRITICAL: 5,
+      HIGH: 4,
+      MEDIUM: 3,
+      LOW: 2,
+      INFO: 1,
+    };
+
+    const recentIssues = rawIssues
+      .sort((a, b) => {
+        const weightDiff = (severityWeight[b.severity] || 0) - (severityWeight[a.severity] || 0);
+        if (weightDiff !== 0) return weightDiff;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      })
+      .slice(0, 15)
+      .map((issue) => ({
+        id: issue.id,
+        title: issue.title,
+        filePath: issue.filePath,
+        lineNumber: issue.lineNumber,
+        severity: issue.severity,
+        category: issue.category,
+        createdAt: issue.createdAt.toISOString(),
+        prId: issue.reviewRun.pullRequest.id,
+        prBitbucketId: issue.reviewRun.pullRequest.bitbucketPrId,
+        prTitle: issue.reviewRun.pullRequest.title,
+        repoSlug: issue.reviewRun.pullRequest.repository?.slug || "",
+      }));
 
     const activeQueue = recentPrs.map((pr) => {
       const latestRun = pr.reviewRuns[0];
@@ -122,9 +187,11 @@ export async function GET() {
         avgSopScore,
         agreementRate,
         coverageRate,
+        totalIssuesCount: rawIssues.length,
       },
       recommendationDistribution,
       severityBreakdown,
+      recentIssues,
       activeQueue,
     });
   } catch (error) {

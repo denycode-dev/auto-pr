@@ -8,27 +8,21 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Bold,
-  Check,
   Code,
   Eye,
-  FileCode,
   FileEdit,
   Globe,
   HardDrive,
   Heading1,
   Heading2,
-  Heading3,
   Italic,
   List,
-  ListOrdered,
   Quote,
   Save,
-  Shield,
-  Sparkles,
-  SplitSquareVertical,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { MarkdownRenderer } from "@/components/markdown/markdown-renderer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -183,93 +177,6 @@ export async function fetchUserData(userId: string): Promise<User> {
 
   const selectedCategory = categories.find((c) => c.id === categoryId);
 
-  // Simple Markdown renderer
-  const renderMarkdownPreview = (text: string) => {
-    const lines = text.split("\n");
-    let inCodeBlock = false;
-    let codeBlockContent: string[] = [];
-
-    const elements: React.ReactNode[] = [];
-
-    lines.forEach((line, idx) => {
-      if (line.trim().startsWith("```")) {
-        if (inCodeBlock) {
-          elements.push(
-            <pre
-              key={`code-${idx}`}
-              className="my-3 rounded-lg bg-zinc-950 p-3 font-mono text-xs text-emerald-400 overflow-x-auto border border-zinc-800"
-            >
-              {codeBlockContent.join("\n")}
-            </pre>,
-          );
-          codeBlockContent = [];
-          inCodeBlock = false;
-        } else {
-          inCodeBlock = true;
-        }
-        return;
-      }
-
-      if (inCodeBlock) {
-        codeBlockContent.push(line);
-        return;
-      }
-
-      const trimmed = line.trim();
-
-      if (trimmed.startsWith("# ")) {
-        elements.push(
-          <h1 key={idx} className="text-xl font-bold tracking-tight text-foreground mt-4 mb-2">
-            {trimmed.replace(/^#\s+/, "")}
-          </h1>,
-        );
-      } else if (trimmed.startsWith("## ")) {
-        elements.push(
-          <h2 key={idx} className="text-base font-semibold text-foreground mt-4 mb-1.5 border-b pb-1">
-            {trimmed.replace(/^##\s+/, "")}
-          </h2>,
-        );
-      } else if (trimmed.startsWith("### ")) {
-        elements.push(
-          <h3 key={idx} className="text-sm font-semibold text-foreground mt-3 mb-1">
-            {trimmed.replace(/^###\s+/, "")}
-          </h3>,
-        );
-      } else if (trimmed.startsWith("> ")) {
-        elements.push(
-          <blockquote
-            key={idx}
-            className="my-2 border-l-4 border-primary/40 bg-muted/30 px-3 py-1.5 italic text-muted-foreground text-xs rounded-r"
-          >
-            {trimmed.replace(/^>\s+/, "")}
-          </blockquote>,
-        );
-      } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-        elements.push(
-          <li key={idx} className="ml-4 list-disc text-xs text-foreground/90 my-0.5">
-            {trimmed.replace(/^[-*]\s+/, "")}
-          </li>,
-        );
-      } else if (/^\d+\.\s/.test(trimmed)) {
-        elements.push(
-          <li key={idx} className="ml-4 list-decimal text-xs text-foreground/90 my-0.5">
-            {trimmed.replace(/^\d+\.\s+/, "")}
-          </li>,
-        );
-      } else if (trimmed === "---" || trimmed === "***") {
-        elements.push(<hr key={idx} className="my-3 border-border" />);
-      } else if (trimmed.length > 0) {
-        elements.push(
-          <p key={idx} className="text-xs text-foreground/85 leading-relaxed my-1.5">
-            {trimmed}
-          </p>,
-        );
-      }
-    });
-
-    return elements;
-  };
-
   return (
     <div className="flex flex-col gap-4 pb-12">
       {/* Top Header Navigation Bar */}
@@ -279,7 +186,7 @@ export async function fetchUserData(userId: string): Promise<User> {
             variant="ghost"
             size="sm"
             asChild
-            className="gap-1.5 text-xs -ml-2 text-muted-foreground hover:text-foreground"
+            className="-ml-2 gap-1.5 text-muted-foreground text-xs hover:text-foreground"
           >
             <Link href="/dashboard/sops">
               <ArrowLeft className="size-3.5" />
@@ -299,7 +206,7 @@ export async function fetchUserData(userId: string): Promise<User> {
             size="sm"
             onClick={handleSave}
             disabled={isSubmitting}
-            className="gap-1.5 text-xs font-semibold shadow-xs"
+            className="gap-1.5 font-semibold text-xs shadow-xs"
           >
             <Save className="size-3.5" />
             {isSubmitting ? "Menyimpan..." : "Simpan SOP"}
@@ -308,8 +215,9 @@ export async function fetchUserData(userId: string): Promise<User> {
       </div>
 
       {/* Metadata Configuration Bar */}
-      <div className="rounded-xl border bg-card p-4 shadow-xs space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="space-y-3 rounded-xl border bg-card p-4 shadow-xs">
+        {/* Row 1: Title & Category */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {/* Title */}
           <div className="space-y-1.5 md:col-span-2">
             <Label htmlFor="sop-title" className="text-xs">
@@ -320,7 +228,7 @@ export async function fetchUserData(userId: string): Promise<User> {
               placeholder="Contoh: Standar Penanganan Eksepsi & Log Error"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="h-8 text-xs font-medium"
+              className="h-8 font-medium text-xs"
             />
           </div>
 
@@ -363,15 +271,16 @@ export async function fetchUserData(userId: string): Promise<User> {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Row 2: Scope & Repository Selector */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {/* Scope Toggle */}
           <div className="space-y-1.5">
             <Label className="text-xs">Cakupan Aturan (Scope)</Label>
-            <div className="flex rounded-md border p-0.5 bg-muted/40 text-xs">
+            <div className="flex rounded-md border bg-muted/40 p-0.5 text-xs">
               <button
                 type="button"
                 onClick={() => setScope("GLOBAL")}
-                className={`flex-1 py-1 rounded flex items-center justify-center gap-1.5 font-medium transition-all ${
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded py-1 font-medium transition-all ${
                   scope === "GLOBAL" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"
                 }`}
               >
@@ -381,7 +290,7 @@ export async function fetchUserData(userId: string): Promise<User> {
               <button
                 type="button"
                 onClick={() => setScope("REPOSITORY")}
-                className={`flex-1 py-1 rounded flex items-center justify-center gap-1.5 font-medium transition-all ${
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded py-1 font-medium transition-all ${
                   scope === "REPOSITORY" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"
                 }`}
               >
@@ -393,7 +302,7 @@ export async function fetchUserData(userId: string): Promise<User> {
 
           {/* Repository Selector if REPOSITORY scope */}
           {scope === "REPOSITORY" && (
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 md:col-span-2">
               <Label className="text-xs">
                 Repositori Target <span className="text-destructive">*</span>
               </Label>
@@ -411,27 +320,28 @@ export async function fetchUserData(userId: string): Promise<User> {
               </Select>
             </div>
           )}
+        </div>
 
-          {/* Summary */}
-          <div className={`space-y-1.5 ${scope === "REPOSITORY" ? "" : "md:col-span-2"}`}>
-            <Label htmlFor="sop-summary" className="text-xs">
-              Ringkasan Singkat
-            </Label>
-            <Input
-              id="sop-summary"
-              placeholder="Penjelasan singkat aturan untuk developer..."
-              value={summary}
-              onChange={(e) => setSummary(e.target.value)}
-              className="h-8 text-xs"
-            />
-          </div>
+        {/* Row 3: Summary (Textarea) */}
+        <div className="space-y-1.5">
+          <Label htmlFor="sop-summary" className="text-xs">
+            Ringkasan Singkat
+          </Label>
+          <Textarea
+            id="sop-summary"
+            placeholder="Penjelasan singkat aturan untuk developer..."
+            value={summary}
+            onChange={(e) => setSummary(e.target.value)}
+            rows={8}
+            className="min-h-[66px] resize-y text-xs leading-relaxed"
+          />
         </div>
       </div>
 
       {/* DUAL-PANE WORKSPACE: Left Editor, Right Live Preview */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch min-h-[560px]">
+      <div className="grid min-h-[560px] grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
         {/* LEFT PANE: Editor & Toolbar */}
-        <div className="flex flex-col rounded-xl border bg-card shadow-xs overflow-hidden">
+        <div className="flex flex-col overflow-hidden rounded-xl border bg-card shadow-xs">
           {/* Editor Header Bar */}
           <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-3 py-2 text-xs">
             <div className="flex items-center gap-1.5 font-semibold text-foreground">
@@ -515,25 +425,25 @@ export async function fetchUserData(userId: string): Promise<User> {
           </div>
 
           {/* Textarea */}
-          <div className="flex-1 p-3 flex flex-col">
+          <div className="flex flex-1 flex-col p-3">
             <textarea
               ref={textareaRef}
               value={rulesMarkdown}
               onChange={(e) => setRulesMarkdown(e.target.value)}
               placeholder="Tuliskan aturan SOP dalam format Markdown..."
-              className="flex-1 w-full resize-none font-mono text-xs bg-transparent focus:outline-none leading-relaxed text-foreground"
+              className="w-full flex-1 resize-none bg-transparent font-mono text-foreground text-xs leading-relaxed focus:outline-none"
               rows={22}
             />
           </div>
 
-          <div className="flex items-center justify-between border-t bg-muted/20 px-3 py-1.5 text-[10px] text-muted-foreground font-mono">
+          <div className="flex items-center justify-between border-t bg-muted/20 px-3 py-1.5 font-mono text-[10px] text-muted-foreground">
             <span>{rulesMarkdown.split("\n").length} baris</span>
             <span>{rulesMarkdown.length} karakter</span>
           </div>
         </div>
 
         {/* RIGHT PANE: Live Markdown Preview */}
-        <div className="flex flex-col rounded-xl border bg-card shadow-xs overflow-hidden">
+        <div className="flex flex-col overflow-hidden rounded-xl border bg-card shadow-xs">
           {/* Preview Header Bar */}
           <div className="flex items-center justify-between border-b bg-muted/40 px-3 py-2 text-xs">
             <div className="flex items-center gap-1.5 font-semibold text-foreground">
@@ -542,14 +452,16 @@ export async function fetchUserData(userId: string): Promise<User> {
             </div>
 
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+              <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
                 {scope === "GLOBAL" ? "Cakupan Global" : "Khusus Repositori"}
               </Badge>
               {selectedCategory && (
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1">
+                <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[10px]">
                   <span
                     className="size-1.5 rounded-full"
-                    style={{ backgroundColor: selectedCategory.color || "#6366f1" }}
+                    style={{
+                      backgroundColor: selectedCategory.color || "#6366f1",
+                    }}
                   />
                   {selectedCategory.name}
                 </Badge>
@@ -558,15 +470,21 @@ export async function fetchUserData(userId: string): Promise<User> {
           </div>
 
           {/* Live Rendered Content */}
-          <div className="flex-1 p-5 overflow-y-auto max-h-[580px] space-y-2">
+          <div className="max-h-[580px] flex-1 space-y-2 overflow-y-auto p-5">
             {title && (
-              <div className="border-b pb-3 mb-3">
-                <h2 className="text-lg font-bold text-foreground">{title}</h2>
-                {summary && <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{summary}</p>}
+              <div className="mb-3 border-b pb-3">
+                <h2 className="font-bold text-foreground text-lg">{title}</h2>
+                {summary && <p className="mt-1 text-muted-foreground text-xs leading-relaxed">{summary}</p>}
               </div>
             )}
 
-            {renderMarkdownPreview(rulesMarkdown)}
+            {rulesMarkdown.trim() ? (
+              <MarkdownRenderer content={rulesMarkdown} />
+            ) : (
+              <div className="py-12 text-center text-muted-foreground text-xs">
+                Mulai tulis aturan SOP pada panel editor di sebelah kiri untuk melihat live preview di sini...
+              </div>
+            )}
           </div>
         </div>
       </div>

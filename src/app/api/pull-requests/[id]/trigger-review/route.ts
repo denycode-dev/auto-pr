@@ -11,9 +11,11 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-export async function POST(_req: NextRequest, { params }: RouteParams) {
+export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+    const body = await req.json().catch(() => ({}));
+    const { providerId, model, forceRefreshDiff } = body || {};
 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     const numericId = Number(id);
@@ -31,7 +33,10 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
       return apiError(`Pull request '${id}' tidak ditemukan`, "NOT_FOUND", [], 404);
     }
 
-    const reviewRun = await executeAiReview(pr.id);
+    const reviewRun = await executeAiReview(pr.id, Boolean(forceRefreshDiff), {
+      providerId: typeof providerId === "string" ? providerId : undefined,
+      model: typeof model === "string" ? model : undefined,
+    });
 
     return apiSuccess(
       {

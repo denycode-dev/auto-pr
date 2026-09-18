@@ -112,23 +112,8 @@ export function ShikiCodeView({
         style={maxHeight ? { maxHeight, overflowY: "auto" } : undefined}
       >
         {highlightedHtml ? (
-          <div
-            className={`
-              [&>pre]:!bg-transparent [&>pre]:!p-0 [&>pre]:!m-0 [&>pre>code]:!bg-transparent text-xs
-              [&_.line]:block [&_.line]:min-h-[1.35rem] [&_.line]:px-2.5 [&_.line]:border-l-2 [&_.line]:border-transparent
-              [&_.shiki-diff-add]:bg-emerald-500/10 dark:[&_.shiki-diff-add]:bg-emerald-500/15
-              [&_.shiki-diff-add]:!border-emerald-600 dark:[&_.shiki-diff-add]:!border-emerald-500
-              [&_.shiki-diff-del]:bg-rose-500/10 dark:[&_.shiki-diff-del]:bg-rose-500/15
-              [&_.shiki-diff-del]:!border-rose-600 dark:[&_.shiki-diff-del]:!border-rose-500
-              [&_.shiki-diff-hunk]:bg-purple-500/10 dark:[&_.shiki-diff-hunk]:bg-purple-500/15
-              [&_.shiki-diff-hunk]:!border-purple-600 dark:[&_.shiki-diff-hunk]:!border-purple-500
-              [&_.shiki-diff-hunk]:font-semibold
-              [&_.shiki-diff-hunk]:my-1
-              [&_.shiki-diff-header]:text-muted-foreground [&_.shiki-diff-header]:font-medium
-            `}
-            // biome-ignore lint/security/noDangerouslySetInnerHtml: Shiki produces safe syntax highlighted HTML
-            dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-          />
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: Shiki output is trusted syntax-highlighted HTML
+          <div dangerouslySetInnerHTML={{ __html: highlightedHtml }} />
         ) : (
           <pre className="text-foreground whitespace-pre">
             <code>{code}</code>

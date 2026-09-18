@@ -1,5 +1,8 @@
-import { DownloadCloud } from "lucide-react";
+"use client";
 
+import { DownloadCloud, RefreshCw } from "lucide-react";
+
+import { DashboardPageHeader } from "@/app/(main)/dashboard/_components/dashboard-page-header";
 import { Button } from "@/components/ui/button";
 
 interface PrQueueHeaderProps {
@@ -10,23 +13,23 @@ interface PrQueueHeaderProps {
 
 export function PrQueueHeader({ onOpenSyncDialog, onRefresh, isRefreshing = false }: PrQueueHeaderProps) {
   return (
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex min-w-0 flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="font-semibold text-2xl tracking-tight sm:text-3xl">Antrean Pull Request</h1>
-        </div>
-      </div>
+    <DashboardPageHeader
+      title="Antrean Pull Request"
+      description="Daftar pull request Bitbucket Server yang menunggu peninjauan otomatis dan persetujuan Senior Lead."
+    >
+      {onRefresh && (
+        <Button variant="outline" size="sm" onClick={onRefresh} disabled={isRefreshing} className="h-9 gap-1.5 text-xs">
+          <RefreshCw className={`size-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
+      )}
 
-      <div className="flex shrink-0 items-center gap-2.5 self-start lg:self-center">
-        <Button
-          size="sm"
-          onClick={onOpenSyncDialog}
-          className="h-9 gap-2 bg-indigo-600 font-semibold text-white text-xs shadow-xs hover:bg-indigo-700"
-        >
+      {onOpenSyncDialog && (
+        <Button size="sm" onClick={onOpenSyncDialog} className="h-9 gap-2 font-semibold text-xs shadow-xs">
           <DownloadCloud className="size-4" />
           Tarik PR dari Bitbucket
         </Button>
-      </div>
-    </div>
+      )}
+    </DashboardPageHeader>
   );
 }

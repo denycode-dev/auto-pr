@@ -18,6 +18,7 @@ export function SopsManagerView() {
   const [repositories, setRepositories] = React.useState<Repository[]>([]);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = React.useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = React.useState(false);
+  const [isLocalGuideOpen, setIsLocalGuideOpen] = React.useState(false);
 
   const fetchCategories = React.useCallback(async () => {
     try {
@@ -129,23 +130,19 @@ export function SopsManagerView() {
       <SopsHeader
         onManageCategories={() => setIsCategoryDialogOpen(true)}
         onImportMd={() => setIsImportDialogOpen(true)}
+        onOpenLocalGuide={() => setIsLocalGuideOpen(true)}
       />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <SopsList
-            sops={sops}
-            categories={categories}
-            repositories={repositories}
-            onToggleEnabled={handleToggleEnabled}
-            onDeleteSop={handleDeleteSop}
-          />
-        </div>
+      <SopsList
+        sops={sops}
+        categories={categories}
+        repositories={repositories}
+        onToggleEnabled={handleToggleEnabled}
+        onDeleteSop={handleDeleteSop}
+      />
 
-        <div>
-          <LocalSopGuide />
-        </div>
-      </div>
+      {/* Local SOP Guide Modal */}
+      <LocalSopGuide open={isLocalGuideOpen} onOpenChange={setIsLocalGuideOpen} />
 
       {/* Category Management Modal */}
       <SopCategoryDialog
