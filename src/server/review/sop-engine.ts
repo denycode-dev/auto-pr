@@ -38,14 +38,18 @@ export async function buildHybridSopContext(
   const globalSops = sops.filter((s) => s.scope === "GLOBAL");
   const repoSops = sops.filter((s) => s.scope === "REPOSITORY");
 
+  console.log(
+    `[SopEngine] Loaded ${sops.length} active SOPs (Global: ${globalSops.length}, Repo: ${repoSops.length}) for repo: ${repositoryId ?? "none"}`,
+  );
+
   let globalSopsText = "Tidak ada SOP Global yang aktif.";
   if (globalSops.length > 0) {
     globalSopsText = globalSops
       .map(
         (sop, idx) =>
-          `### [SOP Global ${idx + 1}] Kategori: ${sop.category.name} | ${sop.title}\n${
-            sop.summary ? `*Ringkasan:* ${sop.summary}\n\n` : ""
-          }${sop.rulesMarkdown}`,
+          `### [SOP Global ${idx + 1}: ${sop.title}] (Kategori: ${sop.category.name})\n${
+            sop.summary ? `*Ringkasan Aturan:* ${sop.summary}\n\n` : ""
+          }*Ketentuan Kepatuhan:*\n${sop.rulesMarkdown}`,
       )
       .join("\n\n");
   }
@@ -55,9 +59,9 @@ export async function buildHybridSopContext(
     repositorySopsText = repoSops
       .map(
         (sop, idx) =>
-          `### [SOP Repositori ${idx + 1}] Kategori: ${sop.category.name} | ${sop.title}\n${
-            sop.summary ? `*Ringkasan:* ${sop.summary}\n\n` : ""
-          }${sop.rulesMarkdown}`,
+          `### [SOP Repositori ${idx + 1}: ${sop.title}] (Kategori: ${sop.category.name})\n${
+            sop.summary ? `*Ringkasan Aturan:* ${sop.summary}\n\n` : ""
+          }*Ketentuan Kepatuhan:*\n${sop.rulesMarkdown}`,
       )
       .join("\n\n");
   }

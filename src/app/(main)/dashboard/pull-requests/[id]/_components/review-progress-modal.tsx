@@ -22,6 +22,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
@@ -98,6 +99,7 @@ export function ReviewProgressModal({
   const [providers, setProviders] = React.useState<AiProvider[]>([]);
   const [selectedProviderId, setSelectedProviderId] = React.useState<string>("");
   const [selectedModel, setSelectedModel] = React.useState<string>("");
+  const [freshScan, setFreshScan] = React.useState<boolean>(true);
   const [isLoadingProviders, setIsLoadingProviders] = React.useState<boolean>(false);
 
   // Stepper & Progress State
@@ -210,6 +212,7 @@ export function ReviewProgressModal({
         body: JSON.stringify({
           providerId: selectedProviderId,
           model: selectedModel,
+          freshScan,
         }),
       });
       const data = await res.json();
@@ -378,6 +381,25 @@ export function ReviewProgressModal({
                   <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                     <span>Model Terpilih:</span>
                     <span className="font-mono font-semibold text-foreground">{selectedModel}</span>
+                  </div>
+                </div>
+
+                {/* Fresh Scan Option */}
+                <div className="flex items-start space-x-2.5 rounded-lg border bg-muted/20 p-2.5">
+                  <Checkbox
+                    id="fresh-scan"
+                    checked={freshScan}
+                    onCheckedChange={(checked) => setFreshScan(Boolean(checked))}
+                    className="mt-0.5"
+                  />
+                  <div className="grid gap-1 leading-none">
+                    <label htmlFor="fresh-scan" className="cursor-pointer font-medium text-foreground text-xs">
+                      Evaluasi Ulang Penuh (Gunakan aturan SOP terkini)
+                    </label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Memindai ulang seluruh kode diff dengan standar SOP terbaru dan model yang dipilih tanpa
+                      mensupresi draf lama.
+                    </p>
                   </div>
                 </div>
 

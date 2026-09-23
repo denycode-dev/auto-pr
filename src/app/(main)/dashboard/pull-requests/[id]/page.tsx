@@ -16,6 +16,8 @@ import { ReviewRunsTab } from "./_components/review-runs-tab";
 import { SeniorActionBar } from "./_components/senior-action-bar";
 import { SopComplianceTab } from "./_components/sop-compliance-tab";
 
+export const dynamic = "force-dynamic";
+
 interface PageProps {
   params: Promise<{ id: string }>;
 }
@@ -36,8 +38,15 @@ export default async function PullRequestDetailPage({ params }: PageProps) {
     const numId = Number(id);
     const isNumeric = !Number.isNaN(numId);
 
+    let whereCondition: { id: string } | { bitbucketPrId: number } = { id: "00000000-0000-0000-0000-000000000000" };
+    if (isUuid) {
+      whereCondition = { id };
+    } else if (isNumeric) {
+      whereCondition = { bitbucketPrId: numId };
+    }
+
     const dbPr = await prisma.pullRequest.findFirst({
-      where: isUuid ? { id } : isNumeric ? { bitbucketPrId: numId } : { id: "00000000-0000-0000-0000-000000000000" },
+      where: whereCondition,
       include: {
         repository: true,
         reviewRuns: {
@@ -53,9 +62,10 @@ export default async function PullRequestDetailPage({ params }: PageProps) {
 
     if (dbPr) {
       const latestRun = dbPr.reviewRuns[0];
-      // Aggregate issues across runs and deduplicate so no duplicate issues appear in reports
-      const allIssuesRaw = dbPr.reviewRuns.flatMap((r) => r.issues);
-      const uniqueIssues = deduplicateIssues(allIssuesRaw);
+      // Focus on the latest review run's findings, plus any historical issues that were already published to Bitbucket
+      const latestIssues = latestRun ? latestRun.issues : [];
+      const historicalPostedIssues = dbPr.reviewRuns.slice(1).flatMap((r) => r.issues.filter((i) => i.isPosted));
+      const uniqueIssues = deduplicateIssues([...latestIssues, ...historicalPostedIssues]);
 
       pr = {
         id: dbPr.id,

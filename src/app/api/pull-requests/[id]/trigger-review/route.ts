@@ -15,7 +15,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
-    const { providerId, model, forceRefreshDiff } = body || {};
+    const { providerId, model, forceRefreshDiff, freshScan } = body || {};
 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     const numericId = Number(id);
@@ -36,6 +36,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const reviewRun = await executeAiReview(pr.id, Boolean(forceRefreshDiff), {
       providerId: typeof providerId === "string" ? providerId : undefined,
       model: typeof model === "string" ? model : undefined,
+      freshScan: freshScan !== undefined ? Boolean(freshScan) : true,
     });
 
     return apiSuccess(

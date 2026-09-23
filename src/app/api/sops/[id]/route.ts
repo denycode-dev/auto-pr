@@ -1,7 +1,10 @@
+import { revalidatePath } from "next/cache";
 import type { NextRequest } from "next/server";
 
 import { apiError, apiSuccess } from "@/lib/api-response";
 import prisma from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -86,6 +89,9 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       },
     });
 
+    revalidatePath("/dashboard/sops");
+    revalidatePath("/dashboard/pull-requests");
+
     return apiSuccess(
       {
         id: updated.id,
@@ -120,6 +126,9 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     await prisma.codingSop.delete({ where: { id } });
+
+    revalidatePath("/dashboard/sops");
+    revalidatePath("/dashboard/pull-requests");
 
     return apiSuccess({ id }, "Coding SOP berhasil dihapus");
   } catch (error) {

@@ -35,6 +35,11 @@ interface IssuesTabProps {
   prId?: string;
 }
 
+function cleanIssueDescription(desc?: string | null): string {
+  if (!desc) return "";
+  return desc.replace(/^[ \t]*📍[ \t]*\*{0,2}Lokasi:\*{0,2}[^\n]*(\r?\n)+/gim, "").trim();
+}
+
 export function IssuesTab({ issues, bitbucketPrId, prId }: IssuesTabProps) {
   const router = useRouter();
   const [issueList, setIssueList] = React.useState<ReviewIssue[]>(issues);
@@ -575,7 +580,9 @@ export function IssuesTab({ issues, bitbucketPrId, prId }: IssuesTabProps) {
 
                     <div className="flex items-start gap-2">
                       <span className="min-w-[70px] shrink-0 font-semibold text-muted-foreground">⚠️ Uraian:</span>
-                      <span className="whitespace-pre-wrap font-sans text-foreground">{issue.description}</span>
+                      <span className="whitespace-pre-wrap font-sans text-foreground">
+                        {cleanIssueDescription(issue.description)}
+                      </span>
                     </div>
                   </div>
 

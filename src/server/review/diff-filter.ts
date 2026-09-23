@@ -233,8 +233,59 @@ export function isLineInChangedDiff(
 }
 
 /**
+ * Strips redundant file location headers (e.g., '📍 **Lokasi:** ...') from issue description.
+ */
+export function sanitizeIssueDescription(description?: string | null): string {
+  if (!description) return "";
+  return description.replace(/^[ \t]*📍[ \t]*\*{0,2}Lokasi:\*{0,2}[^\n]*(\r?\n)+/gim, "").trim();
+}
+
+const CATEGORY_GROUPS: Record<string, string> = {
+  SOP_VIOLATION: "SOP",
+  SOP: "SOP",
+  CONVENTION: "SOP",
+  STANDARD: "SOP",
+  NAMING: "SOP",
+  BEST_PRACTICE: "SOP",
+  STYLE: "SOP",
+  RULE: "SOP",
+  SECURITY: "SECURITY",
+  VULNERABILITY: "SECURITY",
+  INJECTION: "SECURITY",
+  AUTH: "SECURITY",
+  BUG: "BUG",
+  LOGIC: "BUG",
+  ERROR: "BUG",
+  DEFECT: "BUG",
+  EXCEPTION: "BUG",
+  PERFORMANCE: "PERFORMANCE",
+  OPTIMIZATION: "PERFORMANCE",
+  MEMORY: "PERFORMANCE",
+  LEAK: "PERFORMANCE",
+};
+
+function getCategoryGroup(category?: string | null): string {
+  if (!category) return "OTHER";
+  const upper = category.toUpperCase().trim();
+  return CATEGORY_GROUPS[upper] || upper;
+}
+
+function extractKeyTokens(text?: string | null): string[] {
+  if (!text) return [];
+  const backtickMatches = (text.match(/`([^`]+)`/g) || []).map((m) => m.replace(/`/g, "").toLowerCase().trim());
+  const words = text
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2);
+
+  return Array.from(new Set([...backtickMatches, ...words]));
+}
+
+/**
  * Checks whether an incoming candidate issue is a duplicate of any issue already recorded.
- * Considers file path, line proximity (within 3 lines), and category/title semantic overlap.
+ * Considers file path, line proximity (exact or nearby), category compatibility groups,
+ * and semantic token overlap (including backticked identifiers).
  */
 export function isDuplicateIssue(
   candidate: {
@@ -242,22 +293,24 @@ export function isDuplicateIssue(
     lineNumber: number;
     category: string;
     title: string;
+    description?: string;
   },
   existingIssues: Array<{
     filePath: string;
     lineNumber: number;
     category: string;
     title: string;
+    description?: string;
   }>,
 ): boolean {
-  if (!candidate || !existingIssues || existingIssues.length === 0) return false;
+  if (!existingIssues || existingIssues.length === 0) return false;
 
   const cleanCandidatePath = cleanGitPath(candidate.filePath).toLowerCase();
-  const candidateWords = candidate.title
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, " ")
-    .split(/\s+/)
-    .filter((w) => w.length > 3);
+  const candGroup = getCategoryGroup(candidate.category);
+  const candTokens = extractKeyTokens(`${candidate.title} ${candidate.description ?? ""}`);
+  const candBackticks = (candidate.title.match(/`([^`]+)`/g) ?? []).map((m) =>
+    m.replace(/`/g, "").toLowerCase().trim(),
+  );
 
   return existingIssues.some((existing) => {
     const cleanExistingPath = cleanGitPath(existing.filePath).toLowerCase();
@@ -268,31 +321,57 @@ export function isDuplicateIssue(
 
     if (!isSameFile) return false;
 
-    const lineDiff = Math.abs((candidate.lineNumber || 1) - existing.lineNumber);
+    const lineDiff = Math.abs(candidate.lineNumber - existing.lineNumber);
+    const existGroup = getCategoryGroup(existing.category);
+    const isCompatibleCategory =
+      candGroup === existGroup ||
+      candidate.category.toUpperCase() === existing.category.toUpperCase() ||
+      (candGroup === "SOP" && existGroup === "BUG") ||
+      (candGroup === "BUG" && existGroup === "SOP");
 
-    // 1. Same file + exact line number + same category or title keyword match
+    // 1. Same file + exact line number:
+    // If on the exact same line, almost all AI models are reviewing the same construct.
     if (lineDiff === 0) {
-      if (candidate.category.toUpperCase() === existing.category.toUpperCase()) {
-        return true;
-      }
-      const existingTitleLower = existing.title.toLowerCase();
-      if (candidateWords.some((w) => existingTitleLower.includes(w))) {
-        return true;
-      }
-    }
+      if (isCompatibleCategory) return true;
 
-    // 2. Same file + nearby line (lineDiff <= 3) + same category AND title keyword overlap
-    if (lineDiff <= 3 && candidate.category.toUpperCase() === existing.category.toUpperCase()) {
-      const existingTitleLower = existing.title.toLowerCase();
-      const matchCount = candidateWords.filter((w) => existingTitleLower.includes(w)).length;
-      if (matchCount >= 1) return true;
-    }
+      // Even if categories differ, check if they share any token or title keyword
+      const existTokens = extractKeyTokens(`${existing.title} ${existing.description ?? ""}`);
+      const hasSharedToken = candTokens.some((t) => existTokens.includes(t));
+      if (hasSharedToken) return true;
 
-    // 3. Exact normalized title match in the same file (even if line shifted slightly)
-    const normCandTitle = candidate.title.toLowerCase().replace(/[^a-z0-9]/g, "");
-    const normExistTitle = existing.title.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (normCandTitle.length > 5 && normCandTitle === normExistTitle) {
+      // Check backticks match
+      const existBackticks = (existing.title.match(/`([^`]+)`/g) ?? []).map((m) =>
+        m.replace(/`/g, "").toLowerCase().trim(),
+      );
+      if (candBackticks.some((b) => existBackticks.includes(b))) return true;
+
+      // Default for exact same line in same file: treat as duplicate
       return true;
+    }
+
+    // 2. Same file + nearby line (lineDiff <= 3):
+    if (lineDiff <= 3) {
+      const existTokens = extractKeyTokens(`${existing.title} ${existing.description ?? ""}`);
+      const sharedCount = candTokens.filter((t) => existTokens.includes(t)).length;
+
+      // Shared code token in backtick (e.g. `pekerja` or `photo_url`)
+      const existBackticks = (existing.title.match(/`([^`]+)`/g) ?? []).map((m) =>
+        m.replace(/`/g, "").toLowerCase().trim(),
+      );
+      const sharedBacktick = candBackticks.some((b) => existBackticks.includes(b));
+
+      if (sharedBacktick) return true;
+      if (isCompatibleCategory && sharedCount >= 1) return true;
+      if (sharedCount >= 2) return true;
+    }
+
+    // 3. Exact normalized title match in the same file (even if line shifted up to 10 lines)
+    if (lineDiff <= 10) {
+      const normCandTitle = candidate.title.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const normExistTitle = existing.title.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (normCandTitle.length > 5 && normCandTitle === normExistTitle) {
+        return true;
+      }
     }
 
     return false;
@@ -308,9 +387,10 @@ export function deduplicateIssues<
     lineNumber: number;
     category: string;
     title: string;
+    description?: string;
   },
 >(issues: T[]): T[] {
-  if (!issues || issues.length === 0) return [];
+  if (issues.length === 0) return [];
   const result: T[] = [];
   for (const iss of issues) {
     const isDup = isDuplicateIssue(iss, result);

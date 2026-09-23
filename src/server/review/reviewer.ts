@@ -9,10 +9,11 @@ import {
   isDuplicateIssue,
   isLineInChangedDiff,
   parseAndFilterDiff,
+  sanitizeIssueDescription,
 } from "./diff-filter";
 import { buildHybridSopContext } from "./sop-engine";
 
-export { deduplicateIssues, isDuplicateIssue };
+export { deduplicateIssues, isDuplicateIssue, sanitizeIssueDescription };
 
 export interface ReviewAiIssueOutput {
   filePath: string;
@@ -35,6 +36,7 @@ export interface ReviewAiResponseFormat {
 export interface ExecuteAiReviewOptions {
   providerId?: string;
   model?: string;
+  freshScan?: boolean;
 }
 
 /**
@@ -89,7 +91,9 @@ export async function executeAiReview(
       throw new Error(`Diff tidak ditemukan atau gagal diambil dari Bitbucket Server untuk PR #${pr.bitbucketPrId}`);
     }
 
-    // 2. Fetch all previous issues for this PR to prevent duplicates on re-scans
+    const isFreshScan = options?.freshScan ?? true;
+
+    // 2. Fetch all previous issues for this PR to prevent duplicate comments
     const previousRuns = await prisma.reviewRun.findMany({
       where: { pullRequestId: pr.id },
       include: {
@@ -102,13 +106,17 @@ export async function executeAiReview(
             category: true,
             title: true,
             description: true,
+            isPosted: true,
           },
         },
       },
       orderBy: { createdAt: "desc" },
     });
 
-    const existingIssues = previousRuns.flatMap((r) => r.issues);
+    const allPreviousIssues = previousRuns.flatMap((r) => r.issues);
+    const postedPreviousIssues = allPreviousIssues.filter((i) => i.isPosted);
+    // If freshScan is true (default for re-evaluation), only suppress issues already published to Bitbucket
+    const issuesToSuppress = isFreshScan ? postedPreviousIssues : allPreviousIssues;
 
     // 3. Parse & sanitize diff: exclude binary, lockfiles, minified files, coverage dumps, and files without additions (BR-05)
     const parsedDiff = parseAndFilterDiff(rawDiff);
@@ -155,6 +163,11 @@ Fokus evaluasi:
 4. Kepatuhan terhadap Standar SOP Tim:
 ${sopContext.combinedGuidelinesPrompt}
 
+ATURAN EVALUASI STANDAR SOP:
+- Anda WAJIB memeriksa kepatuhan baris diff terhadap seluruh aturan SOP yang tertera di atas.
+- Jika ditemukan pelanggaran aturan SOP, gunakan category: 'SOP_VIOLATION' dan sebutkan nama aturan SOP secara spesifik pada judul ('title') atau uraian masalah ('description').
+- Evaluasi kode murni berdasarkan aturan SOP terkini di atas.
+
 ATURAN SANGAT KETAT CAKUPAN EVALUASI (DIFF-ONLY SCOPING - WAJIB DIPATUHI):
 1. Anda HANYA diperbolehkan menganalisis dan melaporkan isu pada baris kode yang BARU DITAMBAHKAN atau DIUBAH (baris dengan awalan '+' dalam git diff).
 2. DILARANG KERAS mengevaluasi, mengkritik, atau melaporkan isu pada baris kode yang TIDAK BERUBAH (baris konteks yang diawali spasi ' ') ataupun baris yang dihapus ('-').
@@ -164,8 +177,7 @@ ATURAN SANGAT KETAT CAKUPAN EVALUASI (DIFF-ONLY SCOPING - WAJIB DIPATUHI):
 ATURAN GAYA BAHASA & STRUKTUR OUTPUT (WAJIB DIPATUHI):
 - Gunakan Bahasa Indonesia yang mudah dipahami, terstruktur, ringkas, dan to the point.
 - Hindari kata pengantar basa-basi ("Kami melihat bahwa...", "Perlu diperhatikan...").
-- Format deskripsi setiap issue HARUS terstruktur rapi dengan poin berikut:
-  📍 **Lokasi:** sebutkan berkas dan nomor baris secara spesifik.
+- Format deskripsi setiap issue HARUS terstruktur rapi dengan poin berikut (JANGAN menambahkan baris lokasi file/baris lagi di dalam deskripsi karena lokasi sudah otomatis tercatat pada filePath dan lineNumber):
   ⚠️ **Masalah:** 1-2 kalimat padat mengenai inti kesalahan logika/keamanan/SOP.
   ⚡ **Dampak:** risiko teknis nyata (potensi error runtime, celah injeksi, data leak, dsb.).
   💡 **Solusi:** arahan perbaikan konkret.
@@ -185,7 +197,7 @@ Wajib kembalikan format JSON persis sesuai skema berikut:
       "severity": "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO",
       "category": "BUG" | "SECURITY" | "PERFORMANCE" | "SOP_VIOLATION" | "BEST_PRACTICE",
       "title": "Judul masalah singkat dan spesifik dalam Bahasa Indonesia",
-      "description": "Uraian terstruktur (Masalah, Dampak, Solusi) dalam Bahasa Indonesia",
+      "description": "Uraian terstruktur (Masalah, Dampak, Solusi) dalam Bahasa Indonesia tanpa mengulang lokasi berkas",
       "suggestedFix": "Potongan kode perbaikan yang valid (opsional)"
     }
   ]
@@ -193,17 +205,16 @@ Wajib kembalikan format JSON persis sesuai skema berikut:
 `.trim();
 
     const existingIssuesPromptSection =
-      existingIssues.length > 0
+      issuesToSuppress.length > 0
         ? `
-DAFTAR TEMUAN/ISU YANG SUDAH TERDAFTAR PADA PEMINDAIAN SEBELUMNYA (JANGAN LAPORKAN KEMBALI):
-${existingIssues
+DAFTAR TEMUAN/KOMENTAR YANG SUDAH TERBIT KE BITBUCKET (JANGAN LAPORKAN KEMBALI):
+${issuesToSuppress
   .slice(0, 30)
   .map((i) => `- [${i.filePath}:${i.lineNumber}] ${i.title} (${i.category})`)
   .join("\n")}
 
-INSTRUKSI KHUSUS PEMINDAIAN ULANG:
-Isu-isu di atas SUDAH tercatat dalam laporan sebelumnya. Anda DILARANG melaporkan kembali isu yang sama atau memiliki esensi yang sama dengan daftar di atas.
-HANYA laporkan temuan/isu BARU yang belum ada dalam daftar di atas. Jika tidak ada isu baru yang ditemukan pada baris perubahan kode, kembalikan array "issues": [].
+INSTRUKSI KHUSUS:
+Isu-isu di atas SUDAH terbit sebagai komentar di Bitbucket Server. Anda DILARANG melaporkan kembali isu yang sama pada baris-baris tersebut.
 `.trim()
         : "";
 
@@ -261,8 +272,11 @@ ${analyzableDiffChunks || rawDiff}
 
     const rawIssues = Array.isArray(aiResult.issues) ? aiResult.issues : [];
 
+    // Filter 0: Internal deduplication within AI's own response
+    const internallyDeduplicated = deduplicateIssues(rawIssues);
+
     // Filter 1: Must be strictly on a changed/added line in the diff (BR-05 & Scoping)
-    const changedDiffIssues = rawIssues.filter((issue) => {
+    const changedDiffIssues = internallyDeduplicated.filter((issue) => {
       const isChanged = isLineInChangedDiff(issue.filePath, issue.lineNumber || 1, parsedDiff);
       if (!isChanged) {
         console.log(
@@ -272,12 +286,12 @@ ${analyzableDiffChunks || rawDiff}
       return isChanged;
     });
 
-    // Filter 2: Must not be duplicate of existing issues from previous review runs
+    // Filter 2: Must not duplicate issues already posted or suppressed
     const finalNewIssues = changedDiffIssues.filter((issue) => {
-      const isDup = isDuplicateIssue(issue, existingIssues);
+      const isDup = isDuplicateIssue(issue, issuesToSuppress);
       if (isDup) {
         console.log(
-          `[ReviewEngine] Menolak isu duplikat pada ${issue.filePath}:${issue.lineNumber} (${issue.title}) - sudah tercatat di pemindaian sebelumnya.`,
+          `[ReviewEngine] Menolak isu duplikat pada ${issue.filePath}:${issue.lineNumber} (${issue.title}) - sudah tercatat/terbit sebelumnya.`,
         );
       }
       return !isDup;
@@ -301,7 +315,7 @@ ${analyzableDiffChunks || rawDiff}
     let finalStatus = aiResult.recommendedStatus;
     let finalSopScore = typeof aiResult.sopScore === "number" ? Math.min(100, Math.max(0, aiResult.sopScore)) : 85;
 
-    if (existingIssues.length > 0 && finalNewIssues.length === 0) {
+    if (issuesToSuppress.length > 0 && finalNewIssues.length === 0) {
       finalSummary =
         "Pemindaian AI ulang selesai: Tidak ditemukan isu baru pada baris kode yang diubah (diff). Seluruh temuan sebelumnya telah tercatat atau kode perubahan memenuhi standar SOP.";
       finalStatus = "RECOMMENDED_APPROVE";
@@ -335,7 +349,7 @@ ${analyzableDiffChunks || rawDiff}
       },
     });
 
-    // 8. Save ONLY finalNewIssues into database as draft
+    // 8. Save ONLY finalNewIssues into database as draft with sanitized descriptions
     for (const issue of finalNewIssues) {
       await prisma.reviewIssue.create({
         data: {
@@ -346,7 +360,7 @@ ${analyzableDiffChunks || rawDiff}
           severity: issue.severity,
           category: issue.category,
           title: issue.title,
-          description: issue.description,
+          description: sanitizeIssueDescription(issue.description),
           suggestedFix: issue.suggestedFix || null,
           bitbucketCommentId: null,
           isPosted: false,
@@ -429,14 +443,13 @@ export async function publishAiReviewToBitbucket(
   for (const issue of issuesToPost) {
     const ext = issue.filePath.split(".").pop() || "typescript";
     const severityEmoji = severityEmojiMap[issue.severity] || "ℹ️";
+    const cleanDesc = sanitizeIssueDescription(issue.description);
 
     const commentText = `### [AI Review] ${severityEmoji} **${issue.title}** (\`${issue.severity}\` | \`${issue.category}\`)
 
 📍 **Lokasi:** \`${issue.filePath}:${issue.lineNumber}\`
 
-${issue.description}${
-  issue.suggestedFix ? `\n\n\`\`\`${ext}\n// Rekomendasi perbaikan:\n${issue.suggestedFix}\n\`\`\`` : ""
-}`;
+${cleanDesc}${issue.suggestedFix ? `\n\n\`\`\`${ext}\n// Rekomendasi perbaikan:\n${issue.suggestedFix}\n\`\`\`` : ""}`;
 
     try {
       const bbComment = await bitbucketClient.postComment(

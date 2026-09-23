@@ -16,7 +16,12 @@ export function SopComplianceTab({ pr }: SopComplianceTabProps) {
   const [sops, setSops] = React.useState<CodingSop[]>([]);
 
   React.useEffect(() => {
-    fetch("/api/sops")
+    const query = new URLSearchParams({ enabledOnly: "true" });
+    if (pr.repositoryId) {
+      query.set("repositoryId", pr.repositoryId);
+    }
+
+    fetch(`/api/sops?${query.toString()}`)
       .then(async (res) => {
         if (!res.ok) return null;
         const text = await res.text();
@@ -30,27 +35,50 @@ export function SopComplianceTab({ pr }: SopComplianceTabProps) {
         }
       })
       .catch(() => setSops([]));
-  }, []);
+  }, [pr.repositoryId]);
 
   const issues = pr.issues ?? [];
 
   const testedRules = sops.map((sop) => {
-    const catStr = (
+    const sopTitleLower = sop.title.toLowerCase();
+    const catName = (
       typeof sop.category === "string" ? sop.category : sop.category?.name || sop.categoryName || ""
     ).toLowerCase();
-    const matchedIssue = issues.find(
-      (iss) =>
-        (catStr && (iss.category || "").toLowerCase() === catStr) ||
-        (catStr && (iss.title || "").toLowerCase().includes(catStr)) ||
-        (iss.description || "").toLowerCase().includes(sop.title.toLowerCase()),
-    );
+
+    // Extract significant keywords from SOP title (> 3 chars)
+    const sopKeywords = sopTitleLower
+      .replace(/[^a-z0-9]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 3);
+
+    const matchedIssue = issues.find((iss) => {
+      const isSopViolation = (iss.category || "").toUpperCase() === "SOP_VIOLATION";
+      const titleLower = (iss.title || "").toLowerCase();
+      const descLower = (iss.description || "").toLowerCase();
+
+      // Direct title match in title or description
+      if (titleLower.includes(sopTitleLower) || descLower.includes(sopTitleLower)) {
+        return true;
+      }
+
+      // Category / keyword match if categorized as SOP_VIOLATION
+      if (isSopViolation) {
+        if (catName && (titleLower.includes(catName) || descLower.includes(catName))) {
+          return true;
+        }
+        const matchCount = sopKeywords.filter((k) => titleLower.includes(k) || descLower.includes(k)).length;
+        if (matchCount >= 2) return true;
+      }
+
+      return false;
+    });
 
     return {
       ...sop,
       isPassed: !matchedIssue,
       reason: matchedIssue
-        ? `Pelanggaran ditemukan pada ${matchedIssue.filePath}:${matchedIssue.lineNumber} (${matchedIssue.title})`
-        : "Kode mematuhi standar SOP ini tanpa anomali.",
+        ? `Pelanggaran terdeteksi pada ${matchedIssue.filePath}:${matchedIssue.lineNumber} (${matchedIssue.title})`
+        : "Kode perubahan mematuhi standar SOP ini tanpa anomali.",
     };
   });
 
