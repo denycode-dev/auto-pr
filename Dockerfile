@@ -76,7 +76,7 @@ ENV DATABASE_URL=$DATABASE_URL \
     BITBUCKET_ACCESS_TOKEN=$BITBUCKET_ACCESS_TOKEN \
     SENIOR_USER_SLUG=$SENIOR_USER_SLUG \
     NODE_ENV=production \
-    PORT=3000 \
+    PORT=2000 \
     HOSTNAME="0.0.0.0" \
     NEXT_TELEMETRY_DISABLED=1
 
@@ -92,6 +92,6 @@ RUN mkdir -p ./public
 # Use standard bun non-root user
 USER bun
 
-EXPOSE 3000
+EXPOSE 2000
 
-CMD ["bun", "run", "start", "--", "-H", "0.0.0.0", "-p", "3000"]
+CMD ["bun", "run", "start", "--", "-H", "0.0.0.0", "-p", "2000"]

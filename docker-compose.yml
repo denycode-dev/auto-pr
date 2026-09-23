@@ -16,7 +16,7 @@ services:
     container_name: auto-pr-app
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "2000:2000"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
