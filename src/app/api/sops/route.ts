@@ -32,6 +32,67 @@ export async function GET(req: NextRequest) {
       whereClause.isEnabled = true;
     }
 
+    const pageParam = searchParams.get("page");
+    const limitParam = searchParams.get("limit");
+
+    if (pageParam) {
+      const page = Math.max(1, parseInt(pageParam, 10));
+      const limit = Math.max(1, Math.min(100, parseInt(limitParam || "10", 10)));
+      const skip = (page - 1) * limit;
+
+      const [total, sops] = await Promise.all([
+        prisma.codingSop.count({ where: whereClause }),
+        prisma.codingSop.findMany({
+          where: whereClause,
+          include: {
+            category: true,
+            repository: true,
+          },
+          orderBy: { createdAt: "desc" },
+          skip,
+          take: limit,
+        }),
+      ]);
+
+      const formatted = sops.map((sop) => ({
+        id: sop.id,
+        title: sop.title,
+        categoryId: sop.categoryId,
+        category: sop.category
+          ? {
+              id: sop.category.id,
+              name: sop.category.name,
+              slug: sop.category.slug,
+              description: sop.category.description,
+              colorBadge: sop.category.colorBadge,
+            }
+          : undefined,
+        scope: sop.scope,
+        repositoryId: sop.repositoryId,
+        repository: sop.repository
+          ? {
+              id: sop.repository.id,
+              projectKey: sop.repository.projectKey,
+              slug: sop.repository.slug,
+              name: sop.repository.name,
+            }
+          : null,
+        summary: sop.summary,
+        rulesMarkdown: sop.rulesMarkdown,
+        isEnabled: sop.isEnabled,
+        createdBy: sop.createdBy,
+        createdAt: sop.createdAt.toISOString(),
+        updatedAt: sop.updatedAt.toISOString(),
+      }));
+
+      return apiSuccess(formatted, "Daftar Coding SOPs berhasil diambil", {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      });
+    }
+
     const sops = await prisma.codingSop.findMany({
       where: whereClause,
       include: {

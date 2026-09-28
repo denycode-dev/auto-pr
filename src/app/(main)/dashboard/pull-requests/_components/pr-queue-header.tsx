@@ -20,7 +20,7 @@ export function PrQueueHeader({ onOpenSyncDialog, onRefresh, isRefreshing = fals
       {onRefresh && (
         <Button variant="outline" size="sm" onClick={onRefresh} disabled={isRefreshing} className="h-9 gap-1.5 text-xs">
           <RefreshCw className={`size-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-          Refresh
+          {isRefreshing ? "Menyinkronkan..." : "Refresh"}
         </Button>
       )}
 

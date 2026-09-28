@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import prisma from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 function normalizeSeniorDecision(decision?: string | null): string {
   if (decision === "APPROVE") return "APPROVED";
   if (decision === "DECLINE") return "DECLINED";
@@ -21,28 +23,51 @@ export async function GET(req: NextRequest) {
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "20", 10)));
     const skip = (page - 1) * limit;
 
-    const whereClause: Record<string, unknown> = {};
+    const repoSlug = searchParams.get("repositorySlug") || searchParams.get("repo");
+    const repositoryId = searchParams.get("repositoryId");
+
+    const andConditions: Record<string, unknown>[] = [];
 
     if (status && status !== "ALL") {
-      whereClause.prStatus = status;
+      andConditions.push({ prStatus: status });
     }
     if (decision && decision !== "ALL") {
       if (decision === "APPROVED") {
-        whereClause.seniorDecision = { in: ["APPROVED", "APPROVE"] };
+        andConditions.push({ seniorDecision: { in: ["APPROVED", "APPROVE"] } });
       } else if (decision === "DECLINED") {
-        whereClause.seniorDecision = { in: ["DECLINED", "DECLINE"] };
+        andConditions.push({ seniorDecision: { in: ["DECLINED", "DECLINE"] } });
+      } else if (decision === "PENDING") {
+        andConditions.push({
+          OR: [{ seniorDecision: null }, { seniorDecision: "PENDING" }],
+        });
+      } else if (decision === "NEEDS_WORK") {
+        andConditions.push({
+          OR: [{ seniorDecision: "NEEDS_WORK" }, { aiRecommendation: "RECOMMENDED_NEEDS_WORK" }],
+        });
       } else {
-        whereClause.seniorDecision = decision;
+        andConditions.push({ seniorDecision: decision });
       }
     }
     if (recommendation && recommendation !== "ALL") {
-      whereClause.aiRecommendation = recommendation;
+      andConditions.push({ aiRecommendation: recommendation });
     }
+
+    const repoFilter: Record<string, unknown> = {};
     if (projectKey && projectKey !== "ALL") {
-      whereClause.repository = { projectKey };
+      repoFilter.projectKey = projectKey;
     }
+    if (repoSlug && repoSlug !== "ALL") {
+      repoFilter.slug = repoSlug;
+    }
+    if (Object.keys(repoFilter).length > 0) {
+      andConditions.push({ repository: repoFilter });
+    }
+    if (repositoryId && repositoryId !== "ALL") {
+      andConditions.push({ repositoryId });
+    }
+
     if (search) {
-      const searchConditions: any[] = [
+      const searchConditions: Record<string, unknown>[] = [
         { title: { contains: search, mode: "insensitive" } },
         { authorName: { contains: search, mode: "insensitive" } },
         { sourceBranch: { contains: search, mode: "insensitive" } },
@@ -52,10 +77,12 @@ export async function GET(req: NextRequest) {
       if (!Number.isNaN(parsedNum)) {
         searchConditions.push({ bitbucketPrId: parsedNum });
       }
-      whereClause.OR = searchConditions;
+      andConditions.push({ OR: searchConditions });
     }
 
-    const [total, pullRequests] = await Promise.all([
+    const whereClause: Record<string, unknown> = andConditions.length > 0 ? { AND: andConditions } : {};
+
+    const [total, pullRequests, pendingCount, approvedCount, declinedCount, needsWorkCount] = await Promise.all([
       prisma.pullRequest.count({ where: whereClause }),
       prisma.pullRequest.findMany({
         where: whereClause,
@@ -72,6 +99,26 @@ export async function GET(req: NextRequest) {
         orderBy: { updatedAt: "desc" },
         skip,
         take: limit,
+      }),
+      prisma.pullRequest.count({
+        where: {
+          OR: [{ seniorDecision: null }, { seniorDecision: "PENDING" }],
+        },
+      }),
+      prisma.pullRequest.count({
+        where: {
+          seniorDecision: { in: ["APPROVED", "APPROVE"] },
+        },
+      }),
+      prisma.pullRequest.count({
+        where: {
+          seniorDecision: { in: ["DECLINED", "DECLINE"] },
+        },
+      }),
+      prisma.pullRequest.count({
+        where: {
+          OR: [{ seniorDecision: "NEEDS_WORK" }, { aiRecommendation: "RECOMMENDED_NEEDS_WORK" }],
+        },
       }),
     ]);
 
@@ -130,6 +177,13 @@ export async function GET(req: NextRequest) {
       limit,
       total,
       totalPages: Math.ceil(total / limit),
+      counts: {
+        all: total,
+        pending: pendingCount,
+        needsWork: needsWorkCount,
+        approved: approvedCount,
+        declined: declinedCount,
+      },
     });
   } catch (error) {
     console.error("[API GET /pull-requests error]:", error);

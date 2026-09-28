@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { DashboardEmptyState } from "@/app/(main)/dashboard/_components/dashboard-empty-state";
+import { DashboardPagination } from "@/app/(main)/dashboard/_components/dashboard-pagination";
 import { dashboardTableStyles } from "@/app/(main)/dashboard/_components/dashboard-table-styles";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,10 @@ export function SopsList({ sops, categories, repositories = [], onToggleEnabled,
     "UPDATED_DESC",
   );
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const [pageSize, setPageSize] = React.useState(10);
+
   const handleResetFilters = () => {
     setSearch("");
     setScopeFilter("ALL");
@@ -78,6 +83,7 @@ export function SopsList({ sops, categories, repositories = [], onToggleEnabled,
     setCategoryFilter("ALL");
     setRepoFilter("ALL");
     setSortBy("UPDATED_DESC");
+    setCurrentPage(1);
   };
 
   // Collect available unique repositories for the filter dropdown
@@ -171,6 +177,13 @@ export function SopsList({ sops, categories, repositories = [], onToggleEnabled,
       });
   }, [sops, scopeFilter, statusFilter, categoryFilter, repoFilter, search, sortBy]);
 
+  const totalItems = filteredSops.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const paginatedSops = React.useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredSops.slice(start, start + pageSize);
+  }, [filteredSops, currentPage, pageSize]);
+
   const _totalGlobalAll = sops.filter((s) => (s.scope || "GLOBAL") === "GLOBAL").length;
   const _totalRepoAll = sops.filter((s) => s.scope === "REPOSITORY").length;
   const hasActiveFilters = Boolean(
@@ -192,14 +205,23 @@ export function SopsList({ sops, categories, repositories = [], onToggleEnabled,
                 <InputGroupInput
                   placeholder="Cari judul, kata kunci SOP..."
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   className="h-9 text-xs"
                 />
               </InputGroup>
             </div>
 
             {/* Category Filter */}
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <Select
+              value={categoryFilter}
+              onValueChange={(val) => {
+                setCategoryFilter(val);
+                setCurrentPage(1);
+              }}
+            >
               <SelectTrigger className="h-9 w-[160px] text-xs">
                 <SelectValue placeholder="Semua Kategori" />
               </SelectTrigger>
@@ -223,7 +245,13 @@ export function SopsList({ sops, categories, repositories = [], onToggleEnabled,
 
             {/* Repository Filter (only if scope is not GLOBAL) */}
             {scopeFilter !== "GLOBAL" && (
-              <Select value={repoFilter} onValueChange={setRepoFilter}>
+              <Select
+                value={repoFilter}
+                onValueChange={(val) => {
+                  setRepoFilter(val);
+                  setCurrentPage(1);
+                }}
+              >
                 <SelectTrigger className="h-9 w-[180px] text-xs">
                   <SelectValue placeholder="Semua Repositori" />
                 </SelectTrigger>
@@ -241,7 +269,13 @@ export function SopsList({ sops, categories, repositories = [], onToggleEnabled,
             )}
 
             {/* Status Filter */}
-            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as "ALL" | "ENABLED" | "DISABLED")}>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => {
+                setStatusFilter(v as "ALL" | "ENABLED" | "DISABLED");
+                setCurrentPage(1);
+              }}
+            >
               <SelectTrigger className="h-9 w-[130px] text-xs">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -338,7 +372,7 @@ export function SopsList({ sops, categories, repositories = [], onToggleEnabled,
                   );
                 }
 
-                return filteredSops.map((sop) => {
+                return paginatedSops.map((sop) => {
                   const isRepoScope = sop.scope === "REPOSITORY";
                   let repoName = "Khusus Repositori";
                   if (sop.projectKey && sop.repositorySlug) {
@@ -477,6 +511,20 @@ export function SopsList({ sops, categories, repositories = [], onToggleEnabled,
             </TableBody>
           </Table>
         </div>
+
+        {/* Pagination Footer */}
+        {filteredSops.length > 0 && (
+          <DashboardPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+            pageSizeOptions={[5, 10, 20, 50]}
+            itemName="SOP"
+          />
+        )}
       </div>
 
       {/* Modal Dialog for viewing SOP Markdown content */}

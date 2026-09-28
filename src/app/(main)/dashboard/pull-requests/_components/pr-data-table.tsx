@@ -12,12 +12,14 @@ import {
   DownloadCloud,
   Filter,
   GitBranch,
+  RefreshCw,
   RotateCcw,
   Search,
   XCircle,
 } from "lucide-react";
 
 import { DashboardEmptyState } from "@/app/(main)/dashboard/_components/dashboard-empty-state";
+import { DashboardPagination } from "@/app/(main)/dashboard/_components/dashboard-pagination";
 import { dashboardTableStyles } from "@/app/(main)/dashboard/_components/dashboard-table-styles";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -43,100 +45,103 @@ function normalizeSeniorDecision(decision?: string | null): SeniorDecision {
 export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTableProps = {}) {
   const [prs, setPrs] = React.useState<PullRequest[]>([]);
   const [repositories, setRepositories] = React.useState<Repository[]>([]);
-  const [_loading, setLoading] = React.useState(true);
+  const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedRepo, setSelectedRepo] = React.useState("ALL");
   const [selectedRecommendation, setSelectedRecommendation] = React.useState("ALL");
   const [selectedDecision, setSelectedDecision] = React.useState("ALL");
 
-  const fetchData = React.useCallback(async () => {
+  // Server-side pagination states
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const [pageSize, setPageSize] = React.useState(10);
+  const [totalItems, setTotalItems] = React.useState(0);
+  const [totalPages, setTotalPages] = React.useState(1);
+  const [counts, setCounts] = React.useState({
+    all: 0,
+    pending: 0,
+    needsWork: 0,
+    approved: 0,
+    declined: 0,
+  });
+
+  const [debouncedSearch, setDebouncedSearch] = React.useState(searchQuery);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const fetchRepositories = React.useCallback(async () => {
     try {
-      setLoading(true);
-      const [prRes, repoRes] = await Promise.all([fetch("/api/pull-requests"), fetch("/api/repositories")]);
-
-      if (prRes.ok) {
-        const prJson = await prRes.json();
-        if (prJson.success && Array.isArray(prJson.data)) {
-          setPrs(prJson.data);
-        } else {
-          setPrs([]);
-        }
-      } else {
-        setPrs([]);
-      }
-
+      const repoRes = await fetch("/api/repositories", { cache: "no-store" });
       if (repoRes.ok) {
         const repoJson = await repoRes.json();
         if (repoJson.success && Array.isArray(repoJson.data)) {
           setRepositories(repoJson.data);
+        }
+      }
+    } catch (err) {
+      console.error("Gagal mengambil data repositori:", err);
+    }
+  }, []);
+
+  const fetchPrs = React.useCallback(async () => {
+    void refreshKey;
+    try {
+      setLoading(true);
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        limit: String(pageSize),
+      });
+      if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
+      if (selectedRepo !== "ALL") params.set("repo", selectedRepo);
+      if (selectedDecision !== "ALL") params.set("decision", selectedDecision);
+      if (selectedRecommendation !== "ALL") params.set("recommendation", selectedRecommendation);
+
+      const res = await fetch(`/api/pull-requests?${params.toString()}`, { cache: "no-store" });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setPrs(json.data);
+          if (json.meta) {
+            setTotalItems(json.meta.total ?? json.data.length);
+            setTotalPages(
+              json.meta.totalPages ?? Math.max(1, Math.ceil((json.meta.total ?? json.data.length) / pageSize)),
+            );
+            if (json.meta.counts) {
+              setCounts(json.meta.counts);
+            }
+          } else {
+            setTotalItems(json.data.length);
+            setTotalPages(Math.max(1, Math.ceil(json.data.length / pageSize)));
+          }
         } else {
-          setRepositories([]);
+          setPrs([]);
+          setTotalItems(0);
+          setTotalPages(1);
         }
       } else {
-        setRepositories([]);
+        setPrs([]);
+        setTotalItems(0);
+        setTotalPages(1);
       }
     } catch (err) {
       console.error("Gagal mengambil data PR:", err);
       setPrs([]);
-      setRepositories([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentPage, pageSize, debouncedSearch, selectedRepo, selectedDecision, selectedRecommendation, refreshKey]);
 
   React.useEffect(() => {
-    if (refreshKey !== undefined) {
-      void fetchData();
-    }
-  }, [fetchData, refreshKey]);
+    void fetchRepositories();
+  }, [fetchRepositories]);
 
-  const filteredPrs = React.useMemo(() => {
-    return prs.filter((pr) => {
-      const decision = normalizeSeniorDecision(pr.seniorDecision);
-
-      // Decision filter
-      if (selectedDecision === "PENDING" && decision !== "PENDING") return false;
-      if (
-        selectedDecision === "NEEDS_WORK" &&
-        decision !== "NEEDS_WORK" &&
-        pr.aiRecommendation !== "RECOMMENDED_NEEDS_WORK"
-      )
-        return false;
-      if (selectedDecision === "APPROVED" && decision !== "APPROVED") return false;
-      if (selectedDecision === "DECLINED" && decision !== "DECLINED") return false;
-
-      // Repo filter
-      if (selectedRepo !== "ALL" && pr.repositorySlug !== selectedRepo) return false;
-
-      // Recommendation filter
-      if (selectedRecommendation !== "ALL" && pr.aiRecommendation !== selectedRecommendation) return false;
-
-      // Search query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesTitle = pr.title.toLowerCase().includes(q);
-        const matchesAuthor = pr.authorName.toLowerCase().includes(q) || pr.authorSlug.toLowerCase().includes(q);
-        const matchesId = pr.bitbucketPrId.toString().includes(q);
-        const matchesBranch = pr.sourceBranch.toLowerCase().includes(q);
-        if (!matchesTitle && !matchesAuthor && !matchesId && !matchesBranch) return false;
-      }
-
-      return true;
-    });
-  }, [prs, selectedDecision, selectedRepo, selectedRecommendation, searchQuery]);
-
-  const counts = React.useMemo(() => {
-    return {
-      all: prs.length,
-      pending: prs.filter((p) => normalizeSeniorDecision(p.seniorDecision) === "PENDING").length,
-      needsWork: prs.filter(
-        (p) =>
-          p.aiRecommendation === "RECOMMENDED_NEEDS_WORK" || normalizeSeniorDecision(p.seniorDecision) === "NEEDS_WORK",
-      ).length,
-      approved: prs.filter((p) => normalizeSeniorDecision(p.seniorDecision) === "APPROVED").length,
-      declined: prs.filter((p) => normalizeSeniorDecision(p.seniorDecision) === "DECLINED").length,
-    };
-  }, [prs]);
+  React.useEffect(() => {
+    void fetchPrs();
+  }, [fetchPrs]);
 
   const hasActiveFilters = Boolean(
     searchQuery || selectedRepo !== "ALL" || selectedRecommendation !== "ALL" || selectedDecision !== "ALL",
@@ -147,6 +152,7 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
     setSelectedRepo("ALL");
     setSelectedRecommendation("ALL");
     setSelectedDecision("ALL");
+    setCurrentPage(1);
   };
 
   return (
@@ -163,14 +169,23 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
                 <InputGroupInput
                   placeholder="Cari judul, author, branch, #ID..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   className="h-9 text-xs"
                 />
               </InputGroup>
             </div>
 
             {/* Decision Filter Dropdown */}
-            <Select value={selectedDecision} onValueChange={setSelectedDecision}>
+            <Select
+              value={selectedDecision}
+              onValueChange={(val) => {
+                setSelectedDecision(val);
+                setCurrentPage(1);
+              }}
+            >
               <SelectTrigger className="h-9 w-[190px] text-xs">
                 <SelectValue placeholder="Keputusan Senior" />
               </SelectTrigger>
@@ -206,7 +221,13 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
             </Select>
 
             {/* Recommendation Filter Dropdown */}
-            <Select value={selectedRecommendation} onValueChange={setSelectedRecommendation}>
+            <Select
+              value={selectedRecommendation}
+              onValueChange={(val) => {
+                setSelectedRecommendation(val);
+                setCurrentPage(1);
+              }}
+            >
               <SelectTrigger className="h-9 w-[180px] text-xs">
                 <SelectValue placeholder="Rekomendasi AI" />
               </SelectTrigger>
@@ -227,7 +248,13 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
             </Select>
 
             {/* Repository Filter Dropdown */}
-            <Select value={selectedRepo} onValueChange={setSelectedRepo}>
+            <Select
+              value={selectedRepo}
+              onValueChange={(val) => {
+                setSelectedRepo(val);
+                setCurrentPage(1);
+              }}
+            >
               <SelectTrigger className="h-9 w-[180px] text-xs">
                 <Filter className="mr-1 size-3.5 text-muted-foreground" />
                 <SelectValue placeholder="Semua Repositori" />
@@ -247,7 +274,7 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
 
           {/* Right Action & Info */}
           <div className="flex shrink-0 items-center gap-2 self-end lg:self-center">
-            <span className="font-mono text-muted-foreground text-xs">{filteredPrs.length} PR ditemukan</span>
+            <span className="font-mono text-muted-foreground text-xs">{totalItems} PR ditemukan</span>
             {hasActiveFilters && (
               <Button
                 variant="ghost"
@@ -282,7 +309,33 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
             </TableHeader>
             <TableBody>
               {(() => {
+                if (loading && prs.length === 0) {
+                  return (
+                    <TableRow>
+                      <TableCell colSpan={8} className="py-16 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <RefreshCw className="size-5 animate-spin text-primary" />
+                          <p className="text-muted-foreground text-xs">Memuat antrean pull request...</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                }
+
                 if (prs.length === 0) {
+                  if (hasActiveFilters) {
+                    return (
+                      <TableRow>
+                        <TableCell colSpan={8} className="py-12 text-center text-muted-foreground text-sm">
+                          <p className="font-medium text-foreground text-xs">Tidak ada hasil yang cocok</p>
+                          <p className="pt-1 text-muted-foreground text-xs">
+                            Coba sesuaikan kata kunci pencarian atau filter status yang dipilih.
+                          </p>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  }
+
                   return (
                     <TableRow>
                       <TableCell colSpan={8} className="p-0">
@@ -308,20 +361,7 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
                   );
                 }
 
-                if (filteredPrs.length === 0) {
-                  return (
-                    <TableRow>
-                      <TableCell colSpan={8} className="py-12 text-center text-muted-foreground text-sm">
-                        <p className="font-medium text-foreground text-xs">Tidak ada hasil yang cocok</p>
-                        <p className="pt-1 text-muted-foreground text-xs">
-                          Coba sesuaikan kata kunci pencarian atau filter status yang dipilih.
-                        </p>
-                      </TableCell>
-                    </TableRow>
-                  );
-                }
-
-                return filteredPrs.map((pr) => {
+                return prs.map((pr) => {
                   const isNeedsWork = pr.aiRecommendation === "RECOMMENDED_NEEDS_WORK";
                   const isApprove = pr.aiRecommendation === "RECOMMENDED_APPROVE";
                   const isDecline = pr.aiRecommendation === "RECOMMENDED_DECLINE";
@@ -521,6 +561,21 @@ export function PrDataTable({ onOpenSyncDialog, refreshKey = 0 }: PrDataTablePro
             </TableBody>
           </Table>
         </div>
+
+        {/* Server-side Pagination Footer */}
+        {totalItems > 0 && (
+          <DashboardPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+            pageSizeOptions={[5, 10, 20, 50]}
+            itemName="pull request"
+            isLoading={loading}
+          />
+        )}
       </div>
     </div>
   );

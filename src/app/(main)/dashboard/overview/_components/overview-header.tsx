@@ -32,13 +32,6 @@ export function OverviewHeader() {
             <h1 className="font-semibold text-2xl text-foreground tracking-tight sm:text-3xl">
               Code Review & Decision Cockpit
             </h1>
-            <Badge
-              variant="outline"
-              className="h-6 shrink-0 gap-1.5 whitespace-nowrap border-emerald-500/30 bg-emerald-500/10 px-2.5 text-emerald-600 dark:text-emerald-400"
-            >
-              <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500" />
-              Live Active
-            </Badge>
           </div>
           <p className="max-w-3xl text-muted-foreground text-xs leading-relaxed sm:text-sm">
             Sistem Otomasi Review Berbasis AI & Asisten Keputusan Senior Engineer untuk Bitbucket Server 8.19

@@ -47,8 +47,8 @@ COPY . .
 # Generate Prisma Client with native Linux engine
 RUN bunx prisma generate
 
-# Build production assets
-RUN bun run build
+# Build production assets (use webpack to prevent Turbopack Google Font resolution error in container)
+RUN bun run build -- --webpack
 
 # ==============================================================================
 # Stage 4: Production Runner

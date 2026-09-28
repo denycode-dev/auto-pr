@@ -14,6 +14,21 @@ export interface BitbucketCommentPayload {
   anchor?: BitbucketAnchor;
 }
 
+export interface BitbucketReviewerUser {
+  name: string;
+  displayName: string;
+  emailAddress?: string;
+  slug?: string;
+}
+
+export interface BitbucketReviewer {
+  user: BitbucketReviewerUser;
+  role?: string;
+  approved: boolean;
+  status: "APPROVED" | "NEEDS_WORK" | "UNAPPROVED" | string;
+  lastReviewedCommit?: string;
+}
+
 export interface BitbucketPullRequestResponse {
   id: number;
   version: number;
@@ -40,6 +55,10 @@ export interface BitbucketPullRequestResponse {
       emailAddress?: string;
     };
   };
+  reviewers?: BitbucketReviewer[];
+  participants?: BitbucketReviewer[];
+  updatedDate?: number;
+  createdDate?: number;
 }
 
 export class BitbucketClient {

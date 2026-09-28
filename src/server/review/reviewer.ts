@@ -40,6 +40,42 @@ export interface ExecuteAiReviewOptions {
 }
 
 /**
+ * Cleanly extracts and parses JSON from AI responses that may contain
+ * markdown code fences (```json ... ```), <think> reasoning tags, or conversational text.
+ */
+export function extractJsonFromContent(content: string): string {
+  let cleaned = (content || "").trim();
+
+  // Strip <think>...</think> reasoning blocks if present (common in reasoning models)
+  cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+
+  // Strip markdown code fences if wrapped in ```...```
+  const fenceMatch = cleaned.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fenceMatch?.[1]) {
+    cleaned = fenceMatch[1].trim();
+  }
+
+  // If still contains other text or extra fences, extract substring from first '{' to last '}'
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace !== -1 && firstBrace < lastBrace) {
+    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+  }
+
+  return cleaned;
+}
+
+export function normalizeAiRecommendation(
+  status?: string | null,
+): "RECOMMENDED_APPROVE" | "RECOMMENDED_NEEDS_WORK" | "RECOMMENDED_DECLINE" {
+  if (!status) return "RECOMMENDED_NEEDS_WORK";
+  const upper = status.toUpperCase();
+  if (upper.includes("APPROV")) return "RECOMMENDED_APPROVE";
+  if (upper.includes("DECLIN") || upper.includes("REJECT")) return "RECOMMENDED_DECLINE";
+  return "RECOMMENDED_NEEDS_WORK";
+}
+
+/**
  * Execute automated code review on a pull request using OpenAI SDK on-demand (BR-02, BR-05, BR-06)
  */
 export async function executeAiReview(
@@ -260,12 +296,16 @@ ${analyzableDiffChunks || rawDiff}
     let aiResult: ReviewAiResponseFormat;
 
     try {
-      aiResult = JSON.parse(responseContent) as ReviewAiResponseFormat;
-    } catch {
+      const cleanedJson = extractJsonFromContent(responseContent);
+      aiResult = JSON.parse(cleanedJson) as ReviewAiResponseFormat;
+    } catch (parseError) {
+      console.error("[ReviewEngine] Gagal parsing JSON response dari AI:", parseError);
+      console.error("[ReviewEngine] Raw response content (preview):", responseContent.slice(0, 500));
       aiResult = {
-        summary: "Evaluasi kode selesai.",
+        summary:
+          "Evaluasi kode selesai. Respons AI tidak dapat diurai secara otomatis ke dalam format JSON yang valid. Silakan lakukan pemindaian ulang.",
         recommendedStatus: "RECOMMENDED_NEEDS_WORK",
-        sopScore: 70,
+        sopScore: 100,
         issues: [],
       };
     }
@@ -312,8 +352,13 @@ ${analyzableDiffChunks || rawDiff}
 
     // Determine clean summary and status
     let finalSummary = aiResult.summary || "Analisis AI selesai.";
-    let finalStatus = aiResult.recommendedStatus;
-    let finalSopScore = typeof aiResult.sopScore === "number" ? Math.min(100, Math.max(0, aiResult.sopScore)) : 85;
+    let finalStatus = normalizeAiRecommendation(aiResult.recommendedStatus);
+    let finalSopScore =
+      typeof aiResult.sopScore === "number"
+        ? Math.min(100, Math.max(0, Math.round(aiResult.sopScore)))
+        : finalNewIssues.length === 0
+          ? 100
+          : 85;
 
     if (issuesToSuppress.length > 0 && finalNewIssues.length === 0) {
       finalSummary =
@@ -340,6 +385,8 @@ ${analyzableDiffChunks || rawDiff}
         sopScore: finalSopScore,
         rawLlmResponse: {
           ...aiResult,
+          rawOutput:
+            responseContent.length > 10000 ? `${responseContent.slice(0, 10000)}... [truncated]` : responseContent,
           issues: finalNewIssues,
           filteredOutCount: rawIssues.length - finalNewIssues.length,
           providerId,

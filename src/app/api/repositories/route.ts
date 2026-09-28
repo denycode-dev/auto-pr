@@ -17,6 +17,53 @@ export async function GET(req: NextRequest) {
       ];
     }
 
+    const pageParam = searchParams.get("page");
+    const limitParam = searchParams.get("limit");
+
+    if (pageParam) {
+      const page = Math.max(1, parseInt(pageParam, 10));
+      const limit = Math.max(1, Math.min(100, parseInt(limitParam || "10", 10)));
+      const skip = (page - 1) * limit;
+
+      const [total, repos] = await Promise.all([
+        prisma.repository.count({ where: whereClause }),
+        prisma.repository.findMany({
+          where: whereClause,
+          include: {
+            pullRequests: {
+              select: { id: true, prStatus: true },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          skip,
+          take: limit,
+        }),
+      ]);
+
+      const formatted = repos.map((repo) => {
+        const openPrs = repo.pullRequests.filter((pr) => pr.prStatus === "OPEN").length;
+        return {
+          id: repo.id,
+          projectKey: repo.projectKey,
+          slug: repo.slug,
+          name: repo.name,
+          isActive: repo.isActive,
+          defaultBranch: "main",
+          openPrCount: openPrs,
+          lastSyncAt: repo.updatedAt.toISOString(),
+          createdAt: repo.createdAt.toISOString(),
+          updatedAt: repo.updatedAt.toISOString(),
+        };
+      });
+
+      return apiSuccess(formatted, "Daftar repositori berhasil diambil", {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      });
+    }
+
     const repos = await prisma.repository.findMany({
       where: whereClause,
       include: {
